@@ -1,6 +1,6 @@
 # nice-insights-skills
 
-Shared Claude Code skills for the Nice Insights team. Clone this repo and symlink skills into your `~/.claude/skills/` directory.
+Shared Claude Code skills for the Nice Insights clients and internal team. Clone this repo and symlink skills into your `~/.claude/skills/` directory.
 
 ## Skills
 
