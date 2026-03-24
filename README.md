@@ -10,6 +10,22 @@ Shared Claude Code skills for the Nice Insights clients and internal team. Clone
 
 ## Setup
 
+### Option 1: Install with npx skills (recommended)
+
+```bash
+npx skills add nice-insights/nice-insights-skills -g -a claude-code -y
+```
+
+This installs globally and creates symlinks from each skill into `~/.claude/skills/`.
+
+To update to the latest version:
+
+```bash
+npx skills update
+```
+
+### Option 2: Clone and symlink manually
+
 1. Clone this repo:
    ```bash
    git clone <repo-url> ~/src/nice-insights-skills
