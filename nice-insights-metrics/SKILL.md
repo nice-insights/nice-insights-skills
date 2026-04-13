@@ -1,6 +1,6 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any ad, order, order line, or timeseries metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, or any ecommerce related metrics.
+description: MUST load before querying any ad, order, order line, cohort, or timeseries metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, or any ecommerce related metrics.
 metadata:
   author: nice-insights
   version: "1.3"
