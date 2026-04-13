@@ -3,7 +3,7 @@ name: nice-insights-metrics
 description: MUST load before querying any ad, order, order line, or timeseries metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, or any ecommerce related metrics.
 metadata:
   author: nice-insights
-  version: "1.2"
+  version: "1.3"
 ---
 
 # Nice Insights Metrics
@@ -20,6 +20,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
+| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — net sales, contribution margin, order counts, or customer counts per cohort over time |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 
 ---
@@ -34,7 +35,7 @@ Otherwise, call `list_companies` to get the list of companies the user has acces
 
 ## Step 2: Confirm Refund Handling (BLOCKING — required before any order query)
 
-**STOP. Before calling `query_order_metrics` or `query_order_line_metrics`, you MUST ask the user whether to include or exclude refunds. Do NOT proceed with the tool call until they answer.**
+**STOP. Before calling `query_order_metrics`, `query_order_line_metrics`, or `query_customer_cohort_metrics`, you MUST ask the user whether to include or exclude refunds. Do NOT proceed with the tool call until they answer.**
 
 Ask: "Should I include or exclude refunds?"
 
@@ -50,7 +51,7 @@ Skip this step for `query_ad_metrics` and `query_timeseries_metrics` — they ha
 
 ## Step 2b: Customer Type Filter (optional)
 
-Use `customer_types` to segment by buyer history. Available on `query_order_line_metrics` and `query_order_metrics`.
+Use `customer_types` to segment by buyer history. Available on `query_order_line_metrics`, `query_order_metrics`, and `query_customer_cohort_metrics`.
 
 - `["New"]` — customers placing their first-ever order
 - `["Repeat"]` — customers who have ordered before
@@ -64,8 +65,8 @@ You can also add `CUSTOMER_TYPE` as a **dimension** to break results out side by
 
 Use these filters to narrow results to specific customer acquisition cohorts. Both are optional.
 
-- `first_order_date_range` — available on `query_order_metrics`. Filters to orders where the customer's first-ever order date falls within the given range. Uses the same `{start, end}` format as `date_range`. Use this to analyze cohorts of customers acquired during a specific period.
-- `max_days_since_first_order` — available on `query_order_metrics` and `query_order_line_metrics`. Filters to orders placed within N days of the customer's first order. Useful for analyzing early customer behavior (e.g., repeat purchases within 30 days).
+- `first_order_date_range` — available on `query_order_metrics` and `query_customer_cohort_metrics` (**required** on `query_customer_cohort_metrics` — it defines which cohorts to include). Filters to orders where the customer's first-ever order date falls within the given range. Uses the same `{start, end}` format as `date_range`.
+- `max_days_since_first_order` — available on `query_order_metrics`, `query_order_line_metrics`, and `query_customer_cohort_metrics`. Filters to orders placed within N days of the customer's first order. Useful for analyzing early customer behavior (e.g., repeat purchases within 30 days).
 
 ---
 
@@ -117,6 +118,32 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 | AVERAGE_CONTRIBUTION_MARGIN | Average contribution margin per order (context-dependent) |
 | AVERAGE_ACQUISITION_MARGIN | Average acquisition margin per new customer (context-dependent) |
 
+### Customer Cohort Metrics — `query_customer_cohort_metrics`
+
+Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. Use for retention analysis, LTV curves, and cohort comparisons. Accepts a single metric per query.
+
+| Metric | Definition |
+|---|---|
+| net_sales | Net sales for the cohort in each period |
+| contribution_margin | Contribution margin for the cohort in each period |
+| order_count | Number of orders for the cohort in each period |
+| customer_count | Number of customers active in each period |
+
+**Parameters:**
+
+- `cohort_grain`: `week` or `month` (default: month) — time grain for cohort bucketing
+- `aggregation_level`: `total`, `order_level`, `customer_level` (default: customer_level) — `total` = raw aggregate, `order_level` = divided by order count, `customer_level` = divided by cohort size (LTV)
+- `value_mode`: `periodic` or `cumulative` (default: cumulative) — single-period values vs running totals
+
+**Period values:** In the returned matrix, period `0` represents the value on the day the customer first purchased. Period `1` is the first complete day/week/month after that, and so on. Months are 30-day periods for simplicity.
+
+**Additional filters** (unique to this tool):
+
+- `first_product_names` — filter to customers whose first order included one of these product names (ANY match)
+- `first_skus` — filter to customers whose first order included one of these SKUs (ANY match)
+- `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok
+- `subscription_types` — filter by subscription type: First, Recurring, Unknown
+
 ### Timeseries Metrics — `query_timeseries_metrics`
 
 Blended CAC over time. Use for trend analysis of customer acquisition efficiency. `date_range` is **required**.
@@ -137,7 +164,7 @@ Blended CAC over time. Use for trend analysis of customer acquisition efficiency
 
 Use inline when result sets are relatively small and you need to reason over or summarize the data directly. 
 
-Use s3_csv as the output mode when you expect more than 40 rows of data, or when the resulting data is complicated.  In particular, customer cohort queries and should use s3_csv since they can return many rows.  Analyze the data with a script on your side for s3_csv output.
+Use s3_csv as the output mode when you expect more than 40 rows of data, or when the resulting data is complicated. Analyze the data with a script on your side for s3_csv output.
 
 ---
 
@@ -151,11 +178,9 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Cohort analysis (order line only):** FIRST_ORDER_DATE, FIRST_ORDER_WEEK, FIRST_ORDER_MONTH, DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
 
-**Cohort analysis (order metrics only):** FIRST_ORDER_AT, LAST_ORDER_AT, DAYS_FROM_FIRST_ORDER, WEEKS_FROM_FIRST_ORDER, MONTHS_FROM_FIRST_ORDER
+**Cohort period values:** For DAYS/WEEKS/MONTHS_SINCE_FIRST_ORDER, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
 
-**Cohort period values:** For DAYS/WEEKS/MONTHS_SINCE_FIRST_ORDER and DAYS/WEEKS/MONTHS_FROM_FIRST_ORDER, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
-
-**Cohort query output convention:** Cohort queries are typically structured with FIRST_ORDER_MONTH or FIRST_ORDER_WEEK as rows (sorted ascending), and the period-since-first-order dimension (e.g. MONTHS_SINCE_FIRST_ORDER) spread across columns, with ORDER_COUNT or CUSTOMER_COUNT as the values. Use `s3_csv` output mode for cohort queries since they can return many rows.
+**Note:** For cohort retention/LTV analysis, prefer `query_customer_cohort_metrics` which returns a pre-pivoted matrix directly.
 
 ---
 
@@ -196,18 +221,18 @@ query_order_metrics(query={
 })
 ```
 
-**Order cohort analysis — repeat behavior within 90 days of first order:**
+**Monthly cumulative LTV by customer cohort:**
 ```
-query_order_metrics(query={
+query_customer_cohort_metrics(query={
   filters: {
     company_id: 123,
-    date_range: { start: "2025-01-01", end: "2025-03-31" },
-    transaction_types: ["Order"],
-    first_order_date_range: { start: "2025-01-01", end: "2025-01-31" },
-    max_days_since_first_order: 90
+    first_order_date_range: { start: "2025-01-01", end: "2025-03-31" },
+    transaction_types: ["Order"]
   },
-  dimensions: ["FIRST_ORDER_AT", "DAYS_FROM_FIRST_ORDER"],
-  metrics: ["ORDER_COUNT", "CONTRIBUTION_MARGIN"]
+  metric: "net_sales",
+  cohort_grain: "month",
+  aggregation_level: "customer_level",
+  value_mode: "cumulative"
 })
 ```
 
