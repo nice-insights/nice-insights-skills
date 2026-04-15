@@ -3,7 +3,7 @@ name: nice-insights-metrics
 description: MUST load before querying any ad, order, order line, cohort, or timeseries metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, or any ecommerce related metrics.
 metadata:
   author: nice-insights
-  version: "1.3"
+  version: "1.4"
 ---
 
 # Nice Insights Metrics
@@ -20,7 +20,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
-| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — net sales, contribution margin, order counts, or customer counts per cohort over time |
+| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 
 ---
@@ -51,7 +51,7 @@ Skip this step for `query_ad_metrics` and `query_timeseries_metrics` — they ha
 
 ## Step 2b: Customer Type Filter (optional)
 
-Use `customer_types` to segment by buyer history. Available on `query_order_line_metrics`, `query_order_metrics`, and `query_customer_cohort_metrics`.
+Use `customer_types` to segment by buyer history. Available on `query_order_line_metrics` and `query_order_metrics`.
 
 - `["New"]` — customers placing their first-ever order
 - `["Repeat"]` — customers who have ordered before
@@ -120,27 +120,26 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
-Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. Use for retention analysis, LTV curves, and cohort comparisons. Accepts a single metric per query.
+Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. All values are cumulative through the period. Use for retention analysis, LTV curves, and cohort comparisons. Accepts a single measure per query.
 
-| Metric | Definition |
+| Measure | Definition |
 |---|---|
-| net_sales | Net sales for the cohort in each period |
-| contribution_margin | Contribution margin for the cohort in each period |
-| order_count | Number of orders for the cohort in each period |
-| customer_count | Number of customers active in each period |
+| sales | Cumulative sales for the cohort through each period |
+| sales_per_customer | Cumulative sales divided by cohort customer count (LTV) |
+| contribution_margin | Cumulative contribution margin for the cohort through each period |
+| contribution_margin_per_customer | Cumulative contribution margin divided by cohort customer count |
+| order_count | Cumulative number of orders for the cohort through each period |
+| orders_per_customer | Cumulative orders divided by cohort customer count |
+| retention_rate | Share of the cohort still active through each period |
 
 **Parameters:**
 
 - `cohort_grain`: `week` or `month` (default: month) — time grain for cohort bucketing
-- `aggregation_level`: `total`, `order_level`, `customer_level` (default: customer_level) — `total` = raw aggregate, `order_level` = divided by order count, `customer_level` = divided by cohort size (LTV)
-- `value_mode`: `periodic` or `cumulative` (default: cumulative) — single-period values vs running totals
-
-**Period values:** In the returned matrix, period `0` represents the value on the day the customer first purchased. Period `1` is the first complete day/week/month after that, and so on. Months are 30-day periods for simplicity.
 
 **Additional filters** (unique to this tool):
 
-- `first_product_names` — filter to customers whose first order included one of these product names (ANY match)
-- `first_skus` — filter to customers whose first order included one of these SKUs (ANY match)
+- `first_order_product_name` — filter to customers whose first order included this product name
+- `first_order_sku` — filter to customers whose first order included this SKU
 - `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok
 - `subscription_types` — filter by subscription type: First, Recurring, Unknown
 
@@ -229,10 +228,8 @@ query_customer_cohort_metrics(query={
     first_order_date_range: { start: "2025-01-01", end: "2025-03-31" },
     transaction_types: ["Order"]
   },
-  metric: "net_sales",
-  cohort_grain: "month",
-  aggregation_level: "customer_level",
-  value_mode: "cumulative"
+  measure: "sales_per_customer",
+  cohort_grain: "month"
 })
 ```
 
