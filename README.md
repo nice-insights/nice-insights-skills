@@ -1,14 +1,15 @@
 # nice-insights-skills
 
-Shared Claude Code skills for the Nice Insights clients and internal team. Clone this repo and symlink skills into your `~/.claude/skills/` directory.
+Shared agent skills for the Nice Insights clients and internal team. Supports both Claude Code and OpenClaw.
 
 ## Skills
 
-| Skill | Description |
-|-------|-------------|
-| `nice-insights-metrics` | Query ecommerce metrics — ad spend, sales, orders, margins, CAC, and more |
+| Skill | Runtime | Description |
+|-------|---------|-------------|
+| `nice-insights-metrics` | Claude Code | Query ecommerce metrics — ad spend, sales, orders, margins, CAC, and more |
+| `nice_insights_metrics` | OpenClaw | Same skill, tuned for the OpenClaw runtime (lives under `openclaw/`) |
 
-## Setup
+## Setup — Claude Code
 
 ### Option 1: Install with npx skills (recommended)
 
@@ -37,3 +38,12 @@ npx skills update
    ```
 
 Skills will then appear in Claude Code's `/` autocomplete in any project.
+
+## Setup — OpenClaw
+
+Clone this repo and symlink the OpenClaw skill into `~/.openclaw/skills/`:
+
+```bash
+git clone <repo-url> ~/src/nice-insights-skills
+ln -s ~/src/nice-insights-skills/openclaw/nice_insights_metrics ~/.openclaw/skills/nice_insights_metrics
+```
