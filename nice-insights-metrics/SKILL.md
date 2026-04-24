@@ -1,9 +1,9 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any ad, order, order line, cohort, or timeseries metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, or any ecommerce related metrics.
+description: MUST load before querying any ad, order, order line, cohort, timeseries, or email metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, email profile and event activity, or any ecommerce related metrics.
 metadata:
   author: nice-insights
-  version: "1.4"
+  version: "1.5"
 ---
 
 # Nice Insights Metrics
@@ -22,6 +22,8 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
+| `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, or flow/list |
+| `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, or click source |
 
 ---
 
@@ -45,7 +47,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics` and `query_timeseries_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_timeseries_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -155,6 +157,39 @@ Blended CAC over time. Use for trend analysis of customer acquisition efficiency
 | SHOPIFY_BLENDED_CAC | (Meta + Google + Microsoft + Pinterest spend) ÷ Shopify new customers |
 | TIKTOK_BLENDED_CAC | TikTok ad spend ÷ TikTok new customers |
 
+### Email Profile Metrics — `query_email_profile_metrics`
+
+Email list and profile-level conversion. Use for list growth, email profile activity, and marketing-attributed sales analysis. Metrics ending in `_MAR` are the *marketing* version of net sales and **exclude refunds** by construction.
+
+| Metric | Definition |
+|---|---|
+| PROFILE_COUNT | Distinct email profiles |
+| ORDER_COUNT | Distinct orders attributed to these profiles |
+| TOTAL_NET_SALES_MAR | Marketing-attributed net sales (excludes refunds) |
+| AVERAGE_NET_SALES_MAR | Average marketing-attributed net sales per row (group-dependent) |
+| CONVERSION_RATE | Share of profiles that placed an order |
+
+**Additional filters** (unique to this tool):
+
+- `first_event_date_range` — filter by the date of the profile's first email event
+- `profile_statuses` — filter by profile status
+- `profile_creation_types` — filter by how the profile was created
+- `profile_creation_flow_or_lists` — filter by originating flow or list name
+
+### Email Event Metrics — `query_email_event_metrics`
+
+Email event activity counts (sends, opens, clicks, etc.). Use for engagement volume and trends.
+
+| Metric | Definition |
+|---|---|
+| TOTAL_EVENT_COUNT | Total email events recorded |
+| UNIQUE_EVENT_COUNT | Distinct profiles generating these events |
+
+**Additional filters** (unique to this tool):
+
+- `event_names` — filter to specific event names
+- `profile_statuses`, `profile_creation_types`, `profile_creation_flow_or_lists` — same semantics as in `query_email_profile_metrics`
+
 **Note on context-dependent metrics:** ORDER_COUNT, CUSTOMER_COUNT, and average metrics (AVERAGE_ORDER_VALUE, AVERAGE_CONTRIBUTION_MARGIN, etc.) produce different SQL depending on whether TRANSACTION_TYPE is included as a dimension. When TRANSACTION_TYPE is a dimension, these metrics account for both order and refund rows separately. When it is not, they automatically filter to orders only.
 
 ---
@@ -176,6 +211,10 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 **Order/line:** SALES_CHANNEL, CUSTOMER_TYPE, TRANSACTION_TYPE, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SKU, IS_SUBSCRIPTION, SUBSCRIPTION_TYPE, ORDER_ID, CUSTOMER_ID
 
 **Cohort analysis (order line only):** FIRST_ORDER_DATE, FIRST_ORDER_WEEK, FIRST_ORDER_MONTH, DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
+
+**Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
+
+**Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE
 
 **Cohort period values:** For DAYS/WEEKS/MONTHS_SINCE_FIRST_ORDER, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
 
@@ -239,5 +278,23 @@ query_timeseries_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
   dimensions: ["WEEK"],
   metrics: ["DTC_BLENDED_CAC", "AMZN_BLENDED_CAC", "COMBINED_BLENDED_CAC"]
+})
+```
+
+**Monthly email-attributed sales by profile status:**
+```
+query_email_profile_metrics(query={
+  filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
+  dimensions: ["MONTH", "PROFILE_STATUS"],
+  metrics: ["PROFILE_COUNT", "ORDER_COUNT", "TOTAL_NET_SALES_MAR", "CONVERSION_RATE"]
+})
+```
+
+**Weekly email event volume by event name:**
+```
+query_email_event_metrics(query={
+  filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
+  dimensions: ["WEEK", "EVENT_NAME"],
+  metrics: ["TOTAL_EVENT_COUNT", "UNIQUE_EVENT_COUNT"]
 })
 ```
