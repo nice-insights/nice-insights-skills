@@ -88,7 +88,7 @@ Available channels: Additional Ad Spend, Tatari TV, TikTok, Amazon, AppLovin, Go
 
 ### Order Line Metrics — `query_order_line_metrics`
 
-Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis.
+Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis. `date_range` filters by the column selected in `date_column` (default: ORDER_DATE). Set `date_column` to REVENUE_RECOGNITION_DATE or FIRST_ORDER_DATE to filter and group by those dates instead.
 
 | Metric | Definition |
 |---|---|
@@ -106,7 +106,7 @@ Product-level sales data. Use for revenue, discounts, refunds, units, and produc
 
 ### Order Metrics — `query_order_metrics`
 
-Order-level costs and margins. Use for profitability, fee analysis, and acquisition economics.
+Order-level costs and margins. Use for profitability, fee analysis, and acquisition economics. `date_range` filters by order date.
 
 | Metric | Definition |
 |---|---|
@@ -207,7 +207,7 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Order/line:** SALES_CHANNEL, CUSTOMER_TYPE, TRANSACTION_TYPE, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SKU, IS_SUBSCRIPTION, SUBSCRIPTION_TYPE, ORDER_ID, CUSTOMER_ID
 
-**Cohort analysis (order line only):** FIRST_ORDER_DATE, FIRST_ORDER_WEEK, FIRST_ORDER_MONTH, DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
+**Cohort analysis (order line only):** DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
 
 **Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
 
