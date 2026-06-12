@@ -1,9 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any ad, order, order line, cohort, timeseries, or email metrics tools. Covers ecommerce metrics for brands like ad spend, impressions, CAC, sales, refunds, order counts, margins, LTV, email profile and event activity, or any ecommerce related metrics.
-metadata:
-  author: nice-insights
-  version: "1.5"
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, cohort, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, retention and LTV, email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "1.6" }
 ---
 
 # Nice Insights Metrics
