@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, cohort, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, retention and LTV, email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "1.6" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "1.7" }
 ---
 
 # Nice Insights Metrics
@@ -19,6 +19,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
+| `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 | `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, or flow/list |
 | `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, or click source |
@@ -45,7 +46,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_timeseries_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -143,6 +144,35 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 - `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok
 - `subscription_types` — filter by subscription type: First, Recurring, Unknown
 
+### Cart Funnel Metrics — `query_cart_metrics`
+
+Shopify checkout funnel — where shoppers drop off between landing and purchasing. Use for funnel-stage volumes, the percentage of each stage that advances to the next, the overall conversion rate, and device-level funnel comparisons. `date_range` filters by event date.
+
+**Shopify only.** The `channel` argument defaults to `"shopify"`; requesting any other channel raises an error. Do not pass a `channel` unless you have a reason to.
+
+> **Metric and dimension names here are lowercase** (`sessions`, `device_type`), unlike the UPPERCASE tokens used by every other tool on this server. Pass them exactly as written below.
+
+| Metric | Definition |
+|---|---|
+| sessions | Total sessions |
+| carts | Carts created |
+| checkouts | Checkouts initiated |
+| orders | Orders placed |
+| session_cart_pct | Carts ÷ sessions × 100 — share of sessions that added to cart |
+| cart_checkout_pct | Checkouts ÷ carts × 100 — share of carts that started checkout |
+| checkout_order_pct | Orders ÷ checkouts × 100 — share of checkouts that placed an order |
+| session_order_pct | Orders ÷ sessions × 100 — overall session-to-order conversion rate |
+
+**Mind the wording.** Only `session_order_pct` is a *conversion rate* (orders per session). `session_cart_pct`, `cart_checkout_pct`, and `checkout_order_pct` are *stage-advance rates* — the share of one funnel stage that reaches the next (e.g. session_cart_pct is the percentage of sessions that add to cart), not conversion to purchase. Don't call them conversion rates when reporting results.
+
+**Funnel rates can legitimately exceed 100%.** Shopify counts each stage independently per session, not as strict subsets — a session can reach checkout without a cart addition (Buy Now buttons, abandoned-checkout recovery links). So `cart_checkout_pct` (and the other stage-to-stage rates) can read above 100%. This is real data, not an error — report it as-is rather than capping or flagging it.
+
+**Dimensions** (lowercase): `date`, `week`, `month`, `device_type`.
+
+**Additional filter** (unique to this tool):
+
+- `device_types` — filter to one or more device types: `desktop`, `game_console`, `mobile`, `other`, `smart_tv`, `tablet`. Add `device_type` as a dimension instead to break the funnel out by device side by side.
+
 ### Timeseries Metrics — `query_timeseries_metrics`
 
 Blended CAC over time. Use for trend analysis of customer acquisition efficiency. `date_range` is **required**.
@@ -213,6 +243,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 **Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
 
 **Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE
+
+**Cart funnel (`query_cart_metrics` only — lowercase):** date, week, month, device_type
 
 **Cohort period values:** For DAYS/WEEKS/MONTHS_SINCE_FIRST_ORDER, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
 
@@ -294,5 +326,14 @@ query_email_event_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
   dimensions: ["WEEK", "EVENT_NAME"],
   metrics: ["TOTAL_EVENT_COUNT", "UNIQUE_EVENT_COUNT"]
+})
+```
+
+**Monthly checkout funnel by device (lowercase names; no channel needed — Shopify only):**
+```
+query_cart_metrics(query={
+  filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
+  dimensions: ["month", "device_type"],
+  metrics: ["sessions", "carts", "checkouts", "orders", "session_order_pct"]
 })
 ```
