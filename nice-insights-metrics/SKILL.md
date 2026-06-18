@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "1.7" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory levels, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "1.8" }
 ---
 
 # Nice Insights Metrics
@@ -18,6 +18,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
+| `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
@@ -46,7 +47,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -118,6 +119,20 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 | CUSTOMER_COUNT | Distinct customers |
 | AVERAGE_CONTRIBUTION_MARGIN | Average contribution margin per order (context-dependent) |
 | AVERAGE_ACQUISITION_MARGIN | Average acquisition margin per new customer (context-dependent) |
+
+### Inventory Metrics — `query_inventory_metrics`
+
+Current on-hand stock levels. Use for "how many units are in stock" questions, by sales channel, product, or variant. This is a **daily-refreshed snapshot of current stock**, not a historical timeseries — there is no `date_range` filter, and the snapshot's as-of date is available as the `SNAPSHOT_DATE` dimension.
+
+| Metric | Definition |
+|---|---|
+| ON_HAND_UNITS | Total units currently in stock (the default metric if none is specified) |
+
+**Dimensions:** SALES_CHANNEL, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SNAPSHOT_DATE
+
+**Additional filter** (unique to this tool):
+
+- `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `PRODUCT_VARIANT_NAME` and look for `on_hand_units` of 0.
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
@@ -240,6 +255,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Cohort analysis (order line only):** DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
 
+**Inventory (`query_inventory_metrics` only):** SALES_CHANNEL, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SNAPSHOT_DATE
+
 **Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
 
 **Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE
@@ -286,6 +303,15 @@ query_order_metrics(query={
   },
   dimensions: ["MONTH", "SALES_CHANNEL"],
   metrics: ["CONTRIBUTION_MARGIN", "ORDER_COUNT"]
+})
+```
+
+**Current on-hand inventory by product variant:**
+```
+query_inventory_metrics(query={
+  filters: { company_id: 123, in_stock_only: true },
+  dimensions: ["PRODUCT_NAME", "PRODUCT_VARIANT_NAME"],
+  metrics: ["ON_HAND_UNITS"]
 })
 ```
 
