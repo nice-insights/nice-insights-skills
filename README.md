@@ -11,18 +11,21 @@ runtime-specific copies.
 | Skill | Description |
 |-------|-------------|
 | [`nice-insights-metrics`](./nice-insights-metrics) | Query ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, current inventory, checkout funnel, and email activity |
+| [`nice-insights-financials`](./nice-insights-financials) | Query and compare scenario-safe monthly financial statement and account hierarchy metrics |
 
-## MCP server
+## MCP servers
 
-The Nice Insights metrics MCP server is available over streamable HTTP:
+The Nice Insights MCP servers are available over streamable HTTP:
 
 ```text
 https://api.niceinsights.io/mcp-metrics
+https://api.niceinsights.io/mcp-financials
 ```
 
-The server uses OAuth. When your MCP client asks you to authenticate, sign in
-with your Nice Insights account. The metrics server uses the `read:metrics`
-scope by default.
+The servers use OAuth. When your MCP client asks you to authenticate, sign in
+with your Nice Insights account. The metrics server uses `read:metrics`; the
+financials server separately requests `read:financials` and also requires the
+`FinancialsAccess` group.
 
 ### Claude Code CLI
 
@@ -30,6 +33,7 @@ Add the remote HTTP server:
 
 ```bash
 claude mcp add --transport http nice-insights-metrics --scope user https://api.niceinsights.io/mcp-metrics
+claude mcp add --transport http nice-insights-financials --scope user https://api.niceinsights.io/mcp-financials
 ```
 
 Then start Claude Code and run `/mcp` to authenticate and verify that the server
@@ -41,11 +45,13 @@ Claude Desktop uses Claude custom connectors for remote MCP servers:
 
 1. Open Claude Desktop and go to **Customize > Connectors**.
 2. Click **+**, then **Add custom connector**.
-3. Enter the remote MCP server URL:
-   `https://api.niceinsights.io/mcp-metrics`
+3. Enter one remote MCP server URL:
+   `https://api.niceinsights.io/mcp-metrics` or
+   `https://api.niceinsights.io/mcp-financials`.
 4. Finish adding the connector, click **Connect**, and complete the browser
    authentication flow.
-5. In a conversation, use **+ > Connectors** to enable the connector when you
+5. Repeat for the other server if you need both ecommerce and financial tools.
+6. In a conversation, use **+ > Connectors** to enable the connector when you
    want Claude to use it.
 
 For Team and Enterprise plans, an Owner may need to add the custom connector
@@ -53,17 +59,21 @@ from **Organization settings > Connectors** before members can connect it.
 
 ### Codex CLI
 
-Add the server to `~/.codex/config.toml`:
+Add the servers to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.nice-insights-metrics]
 url = "https://api.niceinsights.io/mcp-metrics"
+
+[mcp_servers.nice-insights-financials]
+url = "https://api.niceinsights.io/mcp-financials"
 ```
 
 Authenticate the server:
 
 ```bash
 codex mcp login nice-insights-metrics
+codex mcp login nice-insights-financials
 ```
 
 In the Codex TUI, run `/mcp` to confirm the server is active.
@@ -77,6 +87,7 @@ Use **Settings > Integrations & MCP** to add a custom MCP server with this URL:
 
 ```text
 https://api.niceinsights.io/mcp-metrics
+https://api.niceinsights.io/mcp-financials
 ```
 
 If you prefer editing the config directly, use the same `config.toml` snippet
@@ -107,6 +118,7 @@ Or symlink manually:
 ```bash
 git clone https://github.com/nice-insights/nice-insights-skills ~/src/nice-insights-skills
 ln -s ~/src/nice-insights-skills/nice-insights-metrics ~/.claude/skills/nice-insights-metrics
+ln -s ~/src/nice-insights-skills/nice-insights-financials ~/.claude/skills/nice-insights-financials
 ```
 
 ### Codex / OpenClaw
@@ -117,6 +129,7 @@ Both read skills from `~/.agents/skills/`:
 git clone https://github.com/nice-insights/nice-insights-skills ~/src/nice-insights-skills
 mkdir -p ~/.agents/skills
 ln -s ~/src/nice-insights-skills/nice-insights-metrics ~/.agents/skills/nice-insights-metrics
+ln -s ~/src/nice-insights-skills/nice-insights-financials ~/.agents/skills/nice-insights-financials
 ```
 
 OpenClaw also reads `~/.openclaw/skills/` if you prefer to scope the skill
