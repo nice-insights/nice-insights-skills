@@ -13,6 +13,60 @@ runtime-specific copies.
 | [`nice-insights-metrics`](./nice-insights-metrics) | Query ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, current inventory, checkout funnel, and email activity |
 | [`nice-insights-financials`](./nice-insights-financials) | Query and compare scenario-safe monthly financial statement and account hierarchy metrics |
 
+## Install as a plugin (recommended for Claude Code & Claude Desktop)
+
+The fastest way to use these skills in any Claude client is the **Nice Insights
+plugin marketplace**. Installing a plugin bundles the skill *and* its MCP
+connector in one step — no separate `claude mcp add` or custom-connector setup,
+and updates flow from this one repository.
+
+Two plugins are published so you install only what your access covers:
+
+| Plugin | Bundles | Access |
+|--------|---------|--------|
+| `nice-insights-metrics` | metrics skill + metrics connector | `read:metrics` |
+| `nice-insights-financials` | financials skill + financials connector | `read:financials` + `FinancialsAccess` group |
+
+### Claude Code
+
+```bash
+claude plugin marketplace add nice-insights/nice-insights-skills
+claude plugin install nice-insights-metrics@nice-insights
+claude plugin install nice-insights-financials@nice-insights   # only if you have financials access
+```
+
+Then run `/mcp` to complete the OAuth sign-in for each connector.
+
+Update later by refreshing the marketplace:
+
+```bash
+claude plugin marketplace update nice-insights
+```
+
+Or enable background auto-updates in `/plugin` → **Marketplaces** → select
+`nice-insights` → **Enable auto-update** (third-party marketplaces are manual by
+default).
+
+### Claude Desktop / claude.ai
+
+1. Open the **Customize** menu in the left sidebar and open the **Plugins** tab.
+2. Click the menu button in the top-right corner and choose **Add from a
+   repository**.
+3. Enter the GitHub repository `nice-insights/nice-insights-skills` (or its git
+   URL) and sync it.
+4. Install `nice-insights-metrics` (and `nice-insights-financials` if you have
+   access), then complete the connector's OAuth sign-in when prompted.
+
+> **Already added the connector manually?** If you previously ran
+> `claude mcp add nice-insights-metrics …` or added a custom connector in Claude
+> Desktop, remove it first (for example `claude mcp remove nice-insights-metrics`)
+> so you don't end up with a duplicate connector of the same name once the plugin
+> provides it.
+
+The sections below cover **manual setup** — configuring the MCP server and skill
+separately. Use them for Codex / OpenClaw, or when you can't use the plugin
+marketplace.
+
 ## MCP servers
 
 The Nice Insights MCP servers are available over streamable HTTP:

@@ -1,0 +1,33 @@
+{
+  "name": "nice-insights",
+  "owner": { "name": "Nice Insights", "email": "admin@niceinsights.io" },
+  "description": "Nice Insights skills and connectors for ecommerce and financial metrics",
+  "plugins": [
+    {
+      "name": "nice-insights-metrics",
+      "source": "./",
+      "strict": false,
+      "description": "Query Nice Insights ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, inventory, checkout funnel, and email activity.",
+      "skills": ["./nice-insights-metrics"],
+      "mcpServers": {
+        "nice-insights-metrics": {
+          "type": "http",
+          "url": "https://api.niceinsights.io/mcp-metrics"
+        }
+      }
+    },
+    {
+      "name": "nice-insights-financials",
+      "source": "./",
+      "strict": false,
+      "description": "Query and compare scenario-safe monthly financial statement and account hierarchy metrics. Requires the FinancialsAccess group and read:financials scope.",
+      "skills": ["./nice-insights-financials"],
+      "mcpServers": {
+        "nice-insights-financials": {
+          "type": "http",
+          "url": "https://api.niceinsights.io/mcp-financials"
+        }
+      }
+    }
+  ]
+}
