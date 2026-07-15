@@ -13,13 +13,12 @@ runtime-specific copies.
 | [`nice-insights-metrics`](./nice-insights-metrics) | Query ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, current inventory, checkout funnel, and email activity |
 | [`nice-insights-financials`](./nice-insights-financials) | Query and compare scenario-safe monthly financial statement and account hierarchy metrics |
 
-## Install as a plugin (recommended for Claude Code & Cowork)
+## Install as a plugin (recommended for Claude)
 
-The fastest way to use these skills in Claude Code or Cowork is the **Nice
-Insights plugin marketplace**. Installing a plugin bundles the skill *and* its
-MCP connector in one step — no separate `claude mcp add` or custom-connector
-setup, and updates flow from this one repository. Plugins are not available in
-regular Claude Chat.
+The fastest way to use these skills in Claude is the **Nice Insights plugin
+marketplace**. Installing a plugin bundles the skill *and* its MCP connector in
+one step — no separate MCP or skill setup — and updates flow from this one
+repository.
 
 Two plugins are published so you install only what your access covers:
 
@@ -28,7 +27,22 @@ Two plugins are published so you install only what your access covers:
 | `nice-insights-metrics` | metrics skill + metrics connector | `read:metrics` |
 | `nice-insights-financials` | financials skill + financials connector | `read:financials` + `FinancialsAccess` group |
 
-### Claude Code
+### Claude.ai account (Chat, Claude Desktop, and Cowork)
+
+Install through claude.ai to add the marketplace and plugins to your Claude
+account. Claude Code CLI commands only configure Claude Code locally; they do
+not install a plugin to your claude.ai account.
+
+1. Sign in at [claude.ai](https://claude.ai/) and open **Customize > Plugins**.
+2. In **Personal plugins**, click **+**, select **Add marketplace**, then choose
+   **Add from a repository**.
+3. Enter `nice-insights/nice-insights-skills` and sync it.
+4. Install `nice-insights-metrics` (and `nice-insights-financials` if you have
+   access), then complete the connector's OAuth sign-in when prompted.
+5. Type `/` or click **+** in Chat or Cowork to confirm the installed Nice
+   Insights skill appears.
+
+### Claude Code CLI (local installation)
 
 ```bash
 claude plugin marketplace add nice-insights/nice-insights-skills
@@ -50,15 +64,6 @@ claude plugin update nice-insights-financials@nice-insights   # if installed
 Or enable background auto-updates in `/plugin` → **Marketplaces** → select
 `nice-insights` → **Enable auto-update** (third-party marketplaces are manual by
 default).
-
-### Cowork (Claude Desktop / claude.ai)
-
-1. Open Cowork, then open **Customize > Plugins**.
-2. Select **Add marketplace**.
-3. Enter the GitHub repository `nice-insights/nice-insights-skills` (or its
-   repository URL) and sync it.
-4. Install `nice-insights-metrics` (and `nice-insights-financials` if you have
-   access), then complete the connector's OAuth sign-in when prompted.
 
 > **Already added the connector manually?** If you previously ran
 > `claude mcp add nice-insights-metrics …` or added a custom connector in Claude
