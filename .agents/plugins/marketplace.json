@@ -1,0 +1,32 @@
+{
+  "name": "nice-insights",
+  "interface": {
+    "displayName": "Nice Insights"
+  },
+  "plugins": [
+    {
+      "name": "nice-insights-metrics",
+      "source": {
+        "source": "local",
+        "path": "./plugins/nice-insights-metrics"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Analytics"
+    },
+    {
+      "name": "nice-insights-financials",
+      "source": {
+        "source": "local",
+        "path": "./plugins/nice-insights-financials"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Analytics"
+    }
+  ]
+}

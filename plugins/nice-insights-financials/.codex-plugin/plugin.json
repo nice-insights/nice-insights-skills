@@ -1,0 +1,26 @@
+{
+  "name": "nice-insights-financials",
+  "version": "1.4.0",
+  "description": "Query Nice Insights financial metrics with the matching MCP connector and usage skill.",
+  "author": {
+    "name": "Nice Insights",
+    "email": "admin@niceinsights.io",
+    "url": "https://niceinsights.io/"
+  },
+  "homepage": "https://github.com/nice-insights/nice-insights-skills",
+  "repository": "https://github.com/nice-insights/nice-insights-skills",
+  "keywords": ["analytics", "financials", "metrics"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Nice Insights Financials",
+    "shortDescription": "Query scenario-safe financial metrics",
+    "longDescription": "Analyze monthly financial statements and compare Actuals, budgets, and forecasts through scenario-safe Nice Insights queries.",
+    "developerName": "Nice Insights",
+    "category": "Analytics",
+    "capabilities": ["Interactive"],
+    "websiteURL": "https://niceinsights.io/",
+    "defaultPrompt": ["Compare my financial scenarios with Nice Insights"],
+    "brandColor": "#0F766E"
+  }
+}

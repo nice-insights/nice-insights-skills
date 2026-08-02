@@ -71,9 +71,34 @@ default).
 > so you don't end up with a duplicate connector of the same name once the plugin
 > provides it.
 
-The sections below cover **manual setup** — configuring the MCP server and skill
-separately. Use them for Codex / OpenClaw, or when you can't use the plugin
-marketplace.
+## Install as a plugin (recommended for Codex)
+
+Codex can install the same two skill-and-connector bundles from this repository:
+
+```bash
+codex plugin marketplace add nice-insights/nice-insights-skills
+codex plugin add nice-insights-metrics@nice-insights
+codex plugin add nice-insights-financials@nice-insights   # only if you have financials access
+```
+
+Complete OAuth when prompted. If needed, start it explicitly with
+`codex mcp login nice-insights-metrics` or
+`codex mcp login nice-insights-financials`, then open a new Codex thread so the
+new skills and tools are loaded.
+
+Update later by refreshing the marketplace and reinstalling the selected plugin:
+
+```bash
+codex plugin marketplace upgrade nice-insights
+codex plugin add nice-insights-metrics@nice-insights
+codex plugin add nice-insights-financials@nice-insights   # if installed
+```
+
+> **Already configured the connector manually?** Remove the duplicate MCP entry
+> before installing the plugin so only one server with that name is active.
+
+The sections below cover **manual setup**, configuring the MCP server and skill
+separately. Use them for OpenClaw or when you cannot use a plugin marketplace.
 
 ## MCP servers
 

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "nice-insights-metrics": {
+      "type": "http",
+      "url": "https://api.niceinsights.io/mcp-metrics",
+      "oauth_resource": "https://api.niceinsights.io/mcp-metrics"
+    }
+  }
+}

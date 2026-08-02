@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "nice-insights-financials": {
+      "type": "http",
+      "url": "https://api.niceinsights.io/mcp-financials",
+      "oauth_resource": "https://api.niceinsights.io/mcp-financials"
+    }
+  }
+}
