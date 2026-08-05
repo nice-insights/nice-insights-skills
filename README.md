@@ -10,7 +10,7 @@ runtime-specific copies.
 
 | Skill | Description |
 |-------|-------------|
-| [`nice-insights-metrics`](./nice-insights-metrics) | Query ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, current inventory, checkout funnel, and email activity |
+| [`nice-insights-metrics`](./nice-insights-metrics) | Query ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, current inventory, product traffic, checkout funnel, and email activity |
 | [`nice-insights-financials`](./nice-insights-financials) | Query and compare scenario-safe monthly financial statement and account hierarchy metrics |
 
 ## Install as a plugin (recommended for Claude)

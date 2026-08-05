@@ -7,7 +7,7 @@
       "name": "nice-insights-metrics",
       "source": "./",
       "strict": false,
-      "description": "Query Nice Insights ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, inventory, checkout funnel, and email activity.",
+      "description": "Query Nice Insights ecommerce metrics: ad spend, sales, orders, margins, CAC, retention/LTV, inventory, product traffic, checkout funnel, and email activity.",
       "skills": ["./nice-insights-metrics"],
       "mcpServers": {
         "nice-insights-metrics": {

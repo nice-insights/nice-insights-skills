@@ -1,7 +1,7 @@
 {
   "name": "nice-insights-metrics",
-  "version": "1.9.0",
-  "description": "Query Nice Insights ecommerce metrics with the matching MCP connector and usage skill.",
+  "version": "2.0.0",
+  "description": "Query Nice Insights ecommerce metrics, including product traffic, with the matching MCP connector and usage skill.",
   "author": {
     "name": "Nice Insights",
     "email": "admin@niceinsights.io",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Nice Insights Metrics",
     "shortDescription": "Query ecommerce performance metrics",
-    "longDescription": "Analyze advertising, including Reddit and Snapchat, sales, orders, margins, customer acquisition, retention, inventory, checkout funnels, and email performance through Nice Insights.",
+    "longDescription": "Analyze advertising, including Reddit and Snapchat, sales, orders, margins, customer acquisition, retention, inventory, product traffic, checkout funnels, and email performance through Nice Insights.",
     "developerName": "Nice Insights",
     "category": "Analytics",
     "capabilities": ["Interactive"],

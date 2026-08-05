@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory levels, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "1.9" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.0" }
 ---
 
 # Nice Insights Metrics
@@ -19,6 +19,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
+| `query_product_traffic_metrics` | Product page views and sessions over time by sales channel, marketplace, or product |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
@@ -47,7 +48,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -74,7 +75,7 @@ Use these filters to narrow results to specific customer acquisition cohorts. Bo
 
 ## Step 3: Choose the Right Tool and Metrics
 
-Use the definitions below to infer which metrics to request based on the user's question. `query_ad_metrics` defaults to SPEND, IMPRESSIONS, CLICKS if no metrics are specified. All other tools require explicit metric selection.
+Use the definitions below to infer which metrics to request based on the user's question. `query_ad_metrics` defaults to SPEND, IMPRESSIONS, CLICKS if no metrics are specified. `query_inventory_metrics` defaults to ON_HAND_UNITS, and `query_product_traffic_metrics` defaults to both `page_views` and `sessions`. All other tools require explicit metric selection.
 
 ### Ad Metrics — `query_ad_metrics`
 
@@ -134,6 +135,27 @@ Current on-hand stock levels. Use for "how many units are in stock" questions, b
 
 - `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `PRODUCT_VARIANT_NAME` and look for `on_hand_units` of 0.
 
+### Product Traffic Metrics — `query_product_traffic_metrics`
+
+Product-level traffic over time. Use for page-view and session trends, product traffic rankings, and product comparisons. The default metrics are both `page_views` and `sessions`.
+
+> **Amazon Vendor Central limitation:** Vendor Central sources provide glance views, exposed as `page_views`, but do not provide sessions. `sessions` is therefore `null` for Vendor Central data. Do not report null Vendor Central sessions as zero. Amazon Seller Central sources provide both metrics.
+
+The tool currently supports the Amazon sales channel. Shopify product traffic will be added after its separate GraphQL data build is available.
+
+| Metric | Definition |
+|---|---|
+| `page_views` | Product-detail page views. Vendor Central glance views are mapped to this metric. |
+| `sessions` | Product-detail sessions. Unavailable for Amazon Vendor Central data. |
+
+**Dimensions:** `date`, `week`, `month`, `sales_channel`, `marketplace_id`, `marketplace_name`, `product_id`, `product_name`
+
+**Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `product_ids`, `product_names`
+
+Amazon Seller Central reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
+
+Metric and dimension values for this tool are lowercase; pass them exactly as listed above.
+
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
 Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. All values are cumulative through the period. Use for retention analysis, LTV curves, and cohort comparisons. Accepts a single measure per query.
@@ -165,7 +187,7 @@ Shopify checkout funnel — where shoppers drop off between landing and purchasi
 
 **Shopify only.** The `channel` argument defaults to `"shopify"`; requesting any other channel raises an error. Do not pass a `channel` unless you have a reason to.
 
-> **Metric and dimension names here are lowercase** (`sessions`, `device_type`), unlike the UPPERCASE tokens used by every other tool on this server. Pass them exactly as written below.
+> **Metric and dimension names here are lowercase** (`sessions`, `device_type`). Pass them exactly as written below.
 
 | Metric | Definition |
 |---|---|
@@ -257,6 +279,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Inventory (`query_inventory_metrics` only):** SALES_CHANNEL, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SNAPSHOT_DATE
 
+**Product traffic (`query_product_traffic_metrics` only — lowercase):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
+
 **Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
 
 **Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE
@@ -327,6 +351,22 @@ query_inventory_metrics(query={
   metrics: ["ON_HAND_UNITS"]
 })
 ```
+
+**Daily product traffic by product:**
+```
+query_product_traffic_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2025-01-01", end: "2025-01-31" },
+    sales_channels: ["Amazon"]
+  },
+  dimensions: ["date", "product_id", "product_name"],
+  metrics: ["page_views", "sessions"],
+  order_by: [{ field: "date", direction: "asc" }]
+})
+```
+
+For an Amazon Vendor Central company, expect `sessions: null` in these results; only `page_views` is available.
 
 **Monthly cumulative LTV by customer cohort:**
 ```
