@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.0" }
+metadata: { author: "nice-insights", version: "2.1" }
 ---
 
 # Nice Insights Metrics
@@ -9,6 +9,20 @@ metadata: { author: "nice-insights", version: "2.0" }
 Use these tools to answer analytics questions about advertising performance, sales, order economics, and customer acquisition costs.
 
 > **Data freshness:** Data is imported once daily for the *previous* day. Do not query today's date — results will be incomplete. Yesterday is always the most recent complete date.
+
+> **Complete calendar series:** When an explicit `date_range` and exactly one
+> `date`, `week`, or `month` dimension are requested, `query_ad_metrics`,
+> `query_order_metrics`, `query_order_line_metrics`,
+> `query_product_traffic_metrics`, `query_cart_metrics`,
+> `query_email_event_metrics`, and `query_email_profile_metrics` return every
+> period in the range. With additional dimensions, each period is paired only
+> with complete dimension tuples that were observed somewhere in the filtered
+> range; the tools do not fabricate arbitrary cross-products. Missing additive
+> metrics are `0`, while rates and averages with no denominator are `null`.
+> Set `limit` high enough for the complete result (`periods × observed tuples`):
+> the query errors instead of silently returning a partial series when the
+> result would exceed the limit. Inventory, cohort, and timeseries tools retain
+> their existing result shapes and behavior.
 
 ## Available Tools
 
@@ -139,7 +153,7 @@ Current on-hand stock levels. Use for "how many units are in stock" questions, b
 
 Product-level traffic over time. Use for page-view and session trends, product traffic rankings, and product comparisons. The default metrics are both `page_views` and `sessions`.
 
-> **Amazon Vendor Central limitation:** Vendor Central sources provide glance views, exposed as `page_views`, but do not provide sessions. `sessions` is therefore `null` for Vendor Central data. Do not report null Vendor Central sessions as zero. Amazon Seller Central sources provide both metrics.
+> **Amazon Vendor Central limitation:** Vendor Central sources provide glance views, exposed as `page_views`, but do not provide sessions. `sessions` is therefore `null` for Vendor Central data, including calendar periods added to complete a series for an observed Vendor tuple. Do not report null Vendor Central sessions as zero. Amazon Seller Central sources provide both metrics.
 
 The tool currently supports the Amazon sales channel. Shopify product traffic will be added after its separate GraphQL data build is available.
 
