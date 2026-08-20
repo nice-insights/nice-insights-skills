@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.2" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.4" }
 ---
 
 # Nice Insights Metrics
@@ -31,6 +31,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 |---|---|
 | `list_companies` | Which companies are available (or when company_id is unknown) |
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
+| `query_additional_sales_metrics` | Manually supplied sales and quantity by category, subcategory, SKU, source period, and currency |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
@@ -63,7 +64,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_additional_sales_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -90,7 +91,18 @@ Use these filters to narrow results to specific customer acquisition cohorts. Bo
 
 ## Step 3: Choose the Right Tool and Metrics
 
-Use the definitions below to infer which metrics to request based on the user's question. `query_ad_metrics` defaults to SPEND, IMPRESSIONS, CLICKS if no metrics are specified. `query_inventory_metrics` defaults to ON_HAND_UNITS, and `query_product_traffic_metrics` defaults to both `page_views` and `sessions`. All other tools require explicit metric selection.
+Use the definitions below to infer which metrics to request based on the user's question. Prefer naming the metrics you want. When `metrics` is omitted, these tools return a default set:
+
+| Tool | Metrics returned when `metrics` is omitted |
+|---|---|
+| `query_ad_metrics` | SPEND, IMPRESSIONS, CLICKS |
+| `query_additional_sales_metrics` | `quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
+| `query_inventory_metrics` | ON_HAND_UNITS |
+| `query_product_traffic_metrics` | `page_views`, `sessions` |
+| `query_email_profile_metrics` | PROFILE_COUNT, ORDER_COUNT, TOTAL_NET_SALES_MAR |
+| `query_email_event_metrics` | TOTAL_EVENT_COUNT, UNIQUE_EVENT_COUNT |
+
+Every other tool requires explicit metric selection and returns no metric columns without it.
 
 ### Ad Metrics — `query_ad_metrics`
 
@@ -104,6 +116,26 @@ Use the definitions below to infer which metrics to request based on the user's 
 | CTR | Click-through rate as a percentage (CLICKS / IMPRESSIONS × 100) |
 
 Available channels: Additional Ad Spend, Tatari TV, TikTok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat.
+
+### Additional Sales Metrics — `query_additional_sales_metrics`
+
+Manually supplied sales data from each company's Google Sheet. A source row can cover any inclusive start/end date range. The warehouse allocates both quantity and sales evenly across every day in that range before this tool queries the data. A partial date query therefore returns only the allocated share for the requested days.
+
+`total_sales` is always in `reporting_currency`. `source_currency` identifies the currency entered in the source sheet; it does not change the currency of `total_sales`.
+
+Metric and dimension values for this tool are lowercase; pass them exactly as listed below.
+
+| Metric | Definition |
+|---|---|
+| `quantity` | Allocated quantity. Daily values can be fractional when a multi-day source quantity is spread evenly. |
+| `total_sales` | Allocated sales in the company's reporting currency. |
+| `average_sales_per_unit` | `total_sales` divided by `quantity` at the requested grouping level. |
+
+Omitting `metrics` returns all three.
+
+**Filters:** `date_range`, `categories`, `subcategories`, `skus`, `source_currency_codes`, `reporting_currency_codes`.
+
+Use `source_start_date` and `source_end_date` dimensions to trace an allocated daily result back to the source period. Use `source_currency` and `reporting_currency` dimensions when currency context must be visible in the result.
 
 ### Order Line Metrics — `query_order_line_metrics`
 
@@ -249,6 +281,8 @@ Email list and profile-level conversion. Use for list growth, email profile acti
 | AVERAGE_NET_SALES_MAR | Average marketing-attributed net sales per row (group-dependent) |
 | CONVERSION_RATE | Share of profiles that placed an order |
 
+Omitting `metrics` returns PROFILE_COUNT, ORDER_COUNT, and TOTAL_NET_SALES_MAR.
+
 **Additional filters** (unique to this tool):
 
 - `first_event_date_range` — filter by the date of the profile's first email event
@@ -264,6 +298,8 @@ Email event activity counts (sends, opens, clicks, etc.). Use for engagement vol
 |---|---|
 | TOTAL_EVENT_COUNT | Total email events recorded |
 | UNIQUE_EVENT_COUNT | Distinct profiles generating these events |
+
+Omitting `metrics` returns both.
 
 **Additional filters** (unique to this tool):
 
@@ -287,6 +323,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 **Time:** DATE, WEEK, MONTH
 
 **Ad-specific:** CHANNEL, PLATFORM, CAMPAIGN_ID, CAMPAIGN_NAME, AD_GROUP_ID, AD_GROUP_NAME, AD_ID, AD_NAME
+
+**Additional sales (`query_additional_sales_metrics` only — lowercase):** date, week, month, category, subcategory, sku, source_start_date, source_end_date, source_currency, reporting_currency
 
 **Order/line:** SALES_CHANNEL, CUSTOMER_TYPE, TRANSACTION_TYPE, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SKU, IS_SUBSCRIPTION, SUBSCRIPTION_TYPE, ORDER_ID, CUSTOMER_ID
 
@@ -329,6 +367,19 @@ query_ad_metrics(query={
   },
   dimensions: ["CHANNEL"],
   metrics: ["SPEND", "IMPRESSIONS", "CLICKS", "CPM", "CPC", "CTR"]
+})
+```
+
+**Additional sales by day and SKU for part of a source period:**
+```
+query_additional_sales_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2026-07-03", end: "2026-07-05" },
+    reporting_currency_codes: ["USD"]
+  },
+  dimensions: ["date", "category", "subcategory", "sku", "reporting_currency"],
+  metrics: ["quantity", "total_sales", "average_sales_per_unit"]
 })
 ```
 
