@@ -1,7 +1,7 @@
 ---
 name: nice-insights-financials
 description: MUST load before querying the Nice Insights monthly financial metrics MCP tools. Covers scenario-safe Actuals, budget, and forecast aggregations and pairwise comparisons across financial statement and account hierarchy fields.
-metadata: { author: "nice-insights", version: "1.4" }
+metadata: { author: "nice-insights", version: "1.5" }
 ---
 
 # Nice Insights Financials
@@ -42,8 +42,6 @@ Optional filters:
 - `scenario_type` and `scenario_name`: singular exact-scenario pair; supply both or neither.
 - `statement_types`
 - `account_line_items`
-- `child_account_categories`
-- `sub_parent_account_categories`
 - `parent_account_categories`
 
 Passing any list filter as an empty list is the same as omitting it (no
@@ -62,11 +60,9 @@ Available dimensions:
 - `scenario_type`, `scenario_name`
 - `statement_type`
 - `account_line_item`
-- `child_account_category`
-- `sub_parent_account_category`
 - `parent_account_category`
 
-The only metric is `amount`, defined as the rounded sum of source amounts. It is the default when `metrics` is omitted. Missing account hierarchy values remain `null`.
+The only metric is `amount`, defined as the rounded sum of source amounts. It is the default when `metrics` is omitted. `parent_account_category` is the single account hierarchy level; a null dimension value is preserved as `null` and never converted to zero.
 
 Comparison results return `base_amount`, `comparison_amount`, `variance_amount`,
 and `variance_pct`. The percentage is
@@ -75,8 +71,10 @@ and `variance_pct`. The percentage is
 missing. `comparison_status` is `matched`, `base_only`, or `comparison_only`;
 missing scenario rows remain `null` and are never silently converted to zero.
 
-Current `statement_type` values are `Income` and `Expense`; some rows have no
-statement type and return `null`. Omit `statement_types` to include those rows.
+Current `statement_type` values are `Income` and `Expense`, and every reporting line is
+classified today, so omitting `statement_types` returns all of them. The column is
+nullable, so an unclassified line would return `null` and be excluded by any
+`statement_types` filter.
 
 Use `output_mode: "inline"` for direct analysis. Use `output_mode: "s3_csv"` for larger result sets; the response includes a signed CSV URL and five sample rows. `limit` defaults to 100 and cannot exceed 1,000.
 
@@ -127,7 +125,7 @@ compare_monthly_financial_scenarios(query={
 })
 ```
 
-**Export a named plan by account hierarchy:**
+**Export a named plan by category and line item:**
 
 ```text
 query_monthly_financial_metrics(query={
@@ -136,7 +134,7 @@ query_monthly_financial_metrics(query={
     scenario_type: "Plan",
     scenario_name: "Budget"
   },
-  dimensions: ["period", "parent_account_category", "sub_parent_account_category", "child_account_category", "account_line_item"],
+  dimensions: ["period", "parent_account_category", "account_line_item"],
   output_mode: "s3_csv",
   limit: 1000
 })
