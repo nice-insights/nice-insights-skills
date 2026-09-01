@@ -1,6 +1,6 @@
 {
   "name": "nice-insights-metrics",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Query Nice Insights ecommerce metrics, including product traffic and manually supplied additional sales, with the matching MCP connector and usage skill.",
   "author": {
     "name": "Nice Insights",

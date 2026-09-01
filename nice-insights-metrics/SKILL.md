@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.4" }
+metadata: { author: "nice-insights", version: "2.5" }
 ---
 
 # Nice Insights Metrics
@@ -40,7 +40,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 | `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, or flow/list |
-| `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, or click source |
+| `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, click source, or click source type (Flow vs Campaign) |
 
 ---
 
@@ -305,6 +305,7 @@ Omitting `metrics` returns both.
 
 - `event_names` — filter to specific event names
 - `profile_statuses`, `profile_creation_types`, `profile_creation_flow_or_lists` — same semantics as in `query_email_profile_metrics`
+- `clicked_email_source_types` — restrict clicks to automated flows or one-off campaigns. Exactly two accepted values: `"Flow"` and `"Campaign"`. Only `"Clicked Email"` events carry a value here — not `"Clicked SMS"` or `"Clicked email to unsubscribe"` — so this filter implicitly excludes every other event.
 
 **Note on context-dependent metrics:** ORDER_COUNT, CUSTOMER_COUNT, and average metrics (AVERAGE_ORDER_VALUE, AVERAGE_CONTRIBUTION_MARGIN, etc.) produce different SQL depending on whether TRANSACTION_TYPE is included as a dimension. When TRANSACTION_TYPE is a dimension, these metrics account for both order and refund rows separately. When it is not, they automatically filter to orders only.
 
@@ -336,7 +337,9 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
 
-**Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE
+**Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE, CLICKED_EMAIL_SOURCE_TYPE
+
+**Note on CLICKED_EMAIL_SOURCE_TYPE:** values are `Flow` and `Campaign`, and only `Clicked Email` events populate it — `Clicked SMS` and `Clicked email to unsubscribe` are NULL. Grouping by it without an event filter adds a catch-all row whose value is the literal string `None`, covering every event that is not a `Clicked Email` — pair it with `event_names: ["Clicked Email"]` when you want a clean flow-vs-campaign split.
 
 **Cart funnel (`query_cart_metrics` only — lowercase):** date, week, month, device_type
 
@@ -471,6 +474,19 @@ query_email_event_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
   dimensions: ["WEEK", "EVENT_NAME"],
   metrics: ["TOTAL_EVENT_COUNT", "UNIQUE_EVENT_COUNT"]
+})
+```
+
+**Monthly email clicks split by flow vs campaign:**
+```
+query_email_event_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2025-01-01", end: "2025-03-31" },
+    event_names: ["Clicked Email"]
+  },
+  dimensions: ["month", "clicked_email_source_type"],
+  metrics: ["total_event_count", "unique_event_count"]
 })
 ```
 
