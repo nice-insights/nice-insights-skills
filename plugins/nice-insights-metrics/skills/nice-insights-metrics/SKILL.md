@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.6" }
+metadata: { author: "nice-insights", version: "2.7" }
 ---
 
 # Nice Insights Metrics
@@ -69,7 +69,7 @@ Ask: "Should I include or exclude refunds?"
 - **Include refunds** → `transaction_types: ["Order", "Refund"]` (typical for finance/net revenue views)
 - **No filter** → omit `transaction_types` entirely (returns everything)
 
-**Note:** If you add `TRANSACTION_TYPE` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
+**Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
 Skip this step for `query_ad_metrics`, `query_additional_sales_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
@@ -83,7 +83,7 @@ Use `customer_types` to segment by buyer history. Available on `query_order_line
 - `["Repeat"]` — customers who have ordered before
 - Omit to include all customer types
 
-You can also add `CUSTOMER_TYPE` as a **dimension** to break results out side by side instead of filtering.
+You can also add `customer_type` as a **dimension** to break results out side by side instead of filtering.
 
 ---
 
@@ -98,16 +98,18 @@ Use these filters to narrow results to specific customer acquisition cohorts. Bo
 
 ## Step 3: Choose the Right Tool and Metrics
 
+> **Pass values exactly as listed.** Every dimension, metric, and `date_column` value in this skill is lowercase snake_case — pass tokens exactly as written (e.g. `spend`, `channel_name`, `order_date`). Filter values such as channel, transaction-type, and customer-type names keep the display casing shown in each section.
+
 Use the definitions below to infer which metrics to request based on the user's question. Prefer naming the metrics you want. When `metrics` is omitted, these tools return a default set:
 
 | Tool | Metrics returned when `metrics` is omitted |
 |---|---|
-| `query_ad_metrics` | SPEND, IMPRESSIONS, CLICKS |
+| `query_ad_metrics` | `spend`, `impressions`, `clicks` |
 | `query_additional_sales_metrics` | `quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
-| `query_inventory_metrics` | ON_HAND_UNITS |
+| `query_inventory_metrics` | `on_hand_units` |
 | `query_product_traffic_metrics` | `page_views`, `sessions` |
-| `query_email_profile_metrics` | PROFILE_COUNT, ORDER_COUNT, TOTAL_NET_SALES_MAR |
-| `query_email_event_metrics` | TOTAL_EVENT_COUNT, UNIQUE_EVENT_COUNT |
+| `query_email_profile_metrics` | `profile_count`, `order_count`, `total_net_sales_mar` |
+| `query_email_event_metrics` | `total_event_count`, `unique_event_count` |
 
 Every other tool requires explicit metric selection and returns no metric columns without it.
 
@@ -115,22 +117,20 @@ Every other tool requires explicit metric selection and returns no metric column
 
 | Metric | Definition |
 |---|---|
-| SPEND | Total ad spend in dollars |
-| IMPRESSIONS | Total ad impressions served |
-| CLICKS | Total ad clicks |
-| CPM | Cost per thousand impressions (SPEND / IMPRESSIONS × 1000) |
-| CPC | Cost per click (SPEND / CLICKS) |
-| CTR | Click-through rate as a percentage (CLICKS / IMPRESSIONS × 100) |
+| `spend` | Total ad spend in dollars |
+| `impressions` | Total ad impressions served |
+| `clicks` | Total ad clicks |
+| `cpm` | Cost per thousand impressions (`spend` / `impressions` × 1000) |
+| `cpc` | Cost per click (`spend` / `clicks`) |
+| `ctr` | Click-through rate as a percentage (`clicks` / `impressions` × 100) |
 
-Available channels: Additional Ad Spend, Tatari TV, TikTok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat.
+Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat.
 
 ### Additional Sales Metrics — `query_additional_sales_metrics`
 
 Manually supplied sales data from each company's Google Sheet. A source row can cover any inclusive start/end date range. The warehouse allocates both quantity and sales evenly across every day in that range before this tool queries the data. A partial date query therefore returns only the allocated share for the requested days.
 
 `total_sales` is always in `reporting_currency`. `source_currency` identifies the currency entered in the source sheet; it does not change the currency of `total_sales`.
-
-Metric and dimension values for this tool are lowercase; pass them exactly as listed below.
 
 | Metric | Definition |
 |---|---|
@@ -146,21 +146,21 @@ Use `source_start_date` and `source_end_date` dimensions to trace an allocated d
 
 ### Order Line Metrics — `query_order_line_metrics`
 
-Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis. `date_range` filters by the column selected in `date_column` (default: ORDER_DATE). Set `date_column` to REVENUE_RECOGNITION_DATE or FIRST_ORDER_DATE to filter and group by those dates instead.
+Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis. `date_range` filters by the column selected in `date_column` (default: `order_date`). Set `date_column` to `revenue_recognition_date` or `first_order_date` to filter and group by those dates instead.
 
 | Metric | Definition |
 |---|---|
-| GROSS_SALES | Total revenue before any discounts or refunds |
-| TOTAL_DISCOUNT | Total discount amounts applied to orders |
-| TOTAL_REFUNDS | Total refunds issued (positive number = dollars returned to customers) |
-| NET_SALES | GROSS_SALES − TOTAL_DISCOUNT + SHIPPING_PRICE − TOTAL_REFUNDS |
-| SHIPPING_PRICE | Shipping revenue charged to the customer |
-| COGS | Cost of goods sold |
-| UNIT_COUNT | Units sold (refunded units are excluded) |
-| ORDER_COUNT | Distinct orders (excludes refund transactions unless TRANSACTION_TYPE is a dimension) |
-| CUSTOMER_COUNT | Distinct customers |
-| AVERAGE_ORDER_VALUE | Average net sales per order (context-dependent — see note below) |
-| AVERAGE_UNIT_PRICE | Average net sales per unit (context-dependent — see note below) |
+| `gross_sales` | Total revenue before any discounts or refunds |
+| `total_discount` | Total discount amounts applied to orders |
+| `total_refunds` | Total refunds issued (positive number = dollars returned to customers) |
+| `net_sales` | `gross_sales` − `total_discount` + `shipping_price` − `total_refunds` |
+| `shipping_price` | Shipping revenue charged to the customer |
+| `cogs` | Cost of goods sold |
+| `unit_count` | Units sold (refunded units are excluded) |
+| `order_count` | Distinct orders (excludes refund transactions unless `transaction_type` is a dimension) |
+| `customer_count` | Distinct customers |
+| `average_order_value` | Average net sales per order (context-dependent — see note below) |
+| `average_unit_price` | Average net sales per unit (context-dependent — see note below) |
 
 ### Order Metrics — `query_order_metrics`
 
@@ -168,26 +168,26 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 
 | Metric | Definition |
 |---|---|
-| CONTRIBUTION_MARGIN | Total Net sales minus CAC, COGS, shipping, credit card fees, and other variable costs.  This is profit contribution before fixed costs |
-| ACQUISITION_MARGIN | Order value of new customers minus advertising cost — measures the profitability of acquiring new customers |
-| ORDER_COUNT | Distinct orders (context-dependent) |
-| CUSTOMER_COUNT | Distinct customers |
-| AVERAGE_CONTRIBUTION_MARGIN | Average contribution margin per order (context-dependent) |
-| AVERAGE_ACQUISITION_MARGIN | Average acquisition margin per new customer (context-dependent) |
+| `contribution_margin` | Total Net sales minus CAC, COGS, shipping, credit card fees, and other variable costs.  This is profit contribution before fixed costs |
+| `acquisition_margin` | Order value of new customers minus advertising cost — measures the profitability of acquiring new customers |
+| `order_count` | Distinct orders (context-dependent) |
+| `customer_count` | Distinct customers |
+| `average_contribution_margin` | Average contribution margin per order (context-dependent) |
+| `average_acquisition_margin` | Average acquisition margin per new customer (context-dependent) |
 
 ### Inventory Metrics — `query_inventory_metrics`
 
-Current on-hand stock levels. Use for "how many units are in stock" questions, by sales channel, product, or variant. This is a **daily-refreshed snapshot of current stock**, not a historical timeseries — there is no `date_range` filter, and the snapshot's as-of date is available as the `SNAPSHOT_DATE` dimension.
+Current on-hand stock levels. Use for "how many units are in stock" questions, by sales channel, product, or variant. This is a **daily-refreshed snapshot of current stock**, not a historical timeseries — there is no `date_range` filter, and the snapshot's as-of date is available as the `snapshot_date` dimension.
 
 | Metric | Definition |
 |---|---|
-| ON_HAND_UNITS | Total units currently in stock (the default metric if none is specified) |
+| `on_hand_units` | Total units currently in stock (the default metric if none is specified) |
 
-**Dimensions:** SALES_CHANNEL, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SNAPSHOT_DATE
+**Dimensions:** `sales_channel`, `product_id`, `product_name`, `product_variant_id`, `product_variant_name`, `snapshot_date`
 
 **Additional filter** (unique to this tool):
 
-- `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `PRODUCT_VARIANT_NAME` and look for `on_hand_units` of 0.
+- `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `product_variant_name` and look for `on_hand_units` of 0.
 
 ### Product Traffic Metrics — `query_product_traffic_metrics`
 
@@ -207,8 +207,6 @@ The tool currently supports the Amazon sales channel. Shopify product traffic wi
 **Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `product_ids`, `product_names`
 
 Amazon Seller Central reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
-
-Metric and dimension values for this tool are lowercase; pass them exactly as listed above.
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
@@ -241,8 +239,6 @@ Shopify checkout funnel — where shoppers drop off between landing and purchasi
 
 **Shopify only.** The `channel` argument defaults to `"shopify"`; requesting any other channel raises an error. Do not pass a `channel` unless you have a reason to.
 
-> **Metric and dimension names here are lowercase** (`sessions`, `device_type`). Pass them exactly as written below.
-
 | Metric | Definition |
 |---|---|
 | sessions | Total sessions |
@@ -258,7 +254,7 @@ Shopify checkout funnel — where shoppers drop off between landing and purchasi
 
 **Funnel rates can legitimately exceed 100%.** Shopify counts each stage independently per session, not as strict subsets — a session can reach checkout without a cart addition (Buy Now buttons, abandoned-checkout recovery links). So `cart_checkout_pct` (and the other stage-to-stage rates) can read above 100%. This is real data, not an error — report it as-is rather than capping or flagging it.
 
-**Dimensions** (lowercase): `date`, `week`, `month`, `device_type`.
+**Dimensions:** `date`, `week`, `month`, `device_type`.
 
 **Additional filter** (unique to this tool):
 
@@ -270,11 +266,11 @@ Blended CAC over time. Use for trend analysis of customer acquisition efficiency
 
 | Metric | Definition |
 |---|---|
-| DTC_BLENDED_CAC | DTC ad spend ÷ (Shopify + TikTok new customers) |
-| AMZN_BLENDED_CAC | Amazon ad spend ÷ Amazon new customers |
-| COMBINED_BLENDED_CAC | (DTC + Amazon ad spend) ÷ all new customers |
-| SHOPIFY_BLENDED_CAC | (Meta + Google + Microsoft + Pinterest spend) ÷ Shopify new customers |
-| TIKTOK_BLENDED_CAC | TikTok ad spend ÷ TikTok new customers |
+| `dtc_blended_cac` | DTC ad spend ÷ (Shopify + TikTok new customers) |
+| `amzn_blended_cac` | Amazon ad spend ÷ Amazon new customers |
+| `combined_blended_cac` | (DTC + Amazon ad spend) ÷ all new customers |
+| `shopify_blended_cac` | (Meta + Google + Microsoft + Pinterest spend) ÷ Shopify new customers |
+| `tiktok_blended_cac` | TikTok ad spend ÷ TikTok new customers |
 
 ### Email Profile Metrics — `query_email_profile_metrics`
 
@@ -282,13 +278,13 @@ Email list and profile-level conversion. Use for list growth, email profile acti
 
 | Metric | Definition |
 |---|---|
-| PROFILE_COUNT | Distinct email profiles |
-| ORDER_COUNT | Distinct orders attributed to these profiles |
-| TOTAL_NET_SALES_MAR | Marketing-attributed net sales (excludes refunds) |
-| AVERAGE_NET_SALES_MAR | Average marketing-attributed net sales per row (group-dependent) |
-| CONVERSION_RATE | Share of profiles that placed an order |
+| `profile_count` | Distinct email profiles |
+| `order_count` | Distinct orders attributed to these profiles |
+| `total_net_sales_mar` | Marketing-attributed net sales (excludes refunds) |
+| `average_net_sales_mar` | Average marketing-attributed net sales per row (group-dependent) |
+| `conversion_rate` | Share of profiles that placed an order |
 
-Omitting `metrics` returns PROFILE_COUNT, ORDER_COUNT, and TOTAL_NET_SALES_MAR.
+Omitting `metrics` returns `profile_count`, `order_count`, and `total_net_sales_mar`.
 
 **Additional filters** (unique to this tool):
 
@@ -303,8 +299,8 @@ Email event activity counts (sends, opens, clicks, etc.). Use for engagement vol
 
 | Metric | Definition |
 |---|---|
-| TOTAL_EVENT_COUNT | Total email events recorded |
-| UNIQUE_EVENT_COUNT | Distinct profiles generating these events |
+| `total_event_count` | Total email events recorded |
+| `unique_event_count` | Distinct profiles generating these events |
 
 Omitting `metrics` returns both.
 
@@ -314,7 +310,7 @@ Omitting `metrics` returns both.
 - `profile_statuses`, `profile_creation_types`, `profile_creation_flow_or_lists` — same semantics as in `query_email_profile_metrics`
 - `clicked_email_source_types` — restrict clicks to automated flows or one-off campaigns. Exactly two accepted values: `"Flow"` and `"Campaign"`. Only `"Clicked Email"` events carry a value here — not `"Clicked SMS"` or `"Clicked email to unsubscribe"` — so this filter implicitly excludes every other event.
 
-**Note on context-dependent metrics:** ORDER_COUNT, CUSTOMER_COUNT, and average metrics (AVERAGE_ORDER_VALUE, AVERAGE_CONTRIBUTION_MARGIN, etc.) produce different SQL depending on whether TRANSACTION_TYPE is included as a dimension. When TRANSACTION_TYPE is a dimension, these metrics account for both order and refund rows separately. When it is not, they automatically filter to orders only.
+**Note on context-dependent metrics:** `order_count`, `customer_count`, and average metrics (`average_order_value`, `average_contribution_margin`, etc.) produce different SQL depending on whether `transaction_type` is included as a dimension. When `transaction_type` is a dimension, these metrics account for both order and refund rows separately. When it is not, they automatically filter to orders only.
 
 ---
 
@@ -328,29 +324,31 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 ## Available Dimensions
 
-**Time:** DATE, WEEK, MONTH
+**Time:** `date`, `week`, `month`
 
-**Ad-specific:** CHANNEL, PLATFORM, CAMPAIGN_ID, CAMPAIGN_NAME, AD_GROUP_ID, AD_GROUP_NAME, AD_ID, AD_NAME
+**Ad-specific:** `channel_name`, `platform_name`, `campaign_id`, `campaign_name`, `ad_group_id`, `ad_group_name`, `ad_id`, `ad_name`
 
-**Additional sales (`query_additional_sales_metrics` only — lowercase):** date, week, month, category, subcategory, sku, source_start_date, source_end_date, source_currency, reporting_currency
+**Additional sales (`query_additional_sales_metrics` only):** date, week, month, category, subcategory, sku, source_start_date, source_end_date, source_currency, reporting_currency
 
-**Order/line:** SALES_CHANNEL, CUSTOMER_TYPE, TRANSACTION_TYPE, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SKU, IS_SUBSCRIPTION, SUBSCRIPTION_TYPE, ORDER_ID, CUSTOMER_ID
+**Order line (`query_order_line_metrics`):** `date`, `week`, `month`, `sales_channel`, `customer_type`, `transaction_type`, `product_id`, `product_variant_id`, `sku`, `product_name`, `product_variant_name`, `order_sequence`, `order_id`, `is_subscription`, `subscription_type`, `customer_id`, `days_since_first_order`, `weeks_since_first_order`, `months_since_first_order`, `segment_1`–`segment_6`
 
-**Cohort analysis (order line only):** DAYS_SINCE_FIRST_ORDER, WEEKS_SINCE_FIRST_ORDER, MONTHS_SINCE_FIRST_ORDER
+**Order (`query_order_metrics`):** `date`, `week`, `month`, `sales_channel`, `customer_type`, `transaction_type`, `is_subscription`, `subscription_type`, `order_sequence`, `order_id`, `customer_id`, `first_order_at`, `last_order_at`, `days_from_first_order_to_order_date`, `weeks_from_first_order_to_order_date`, `months_from_first_order_to_order_date`, `segment_1`–`segment_6`
 
-**Inventory (`query_inventory_metrics` only):** SALES_CHANNEL, PRODUCT_ID, PRODUCT_NAME, PRODUCT_VARIANT_ID, PRODUCT_VARIANT_NAME, SNAPSHOT_DATE
+**Cohort analysis (order line only):** `days_since_first_order`, `weeks_since_first_order`, `months_since_first_order`
 
-**Product traffic (`query_product_traffic_metrics` only — lowercase):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
+**Inventory (`query_inventory_metrics` only):** `sales_channel`, `product_id`, `product_name`, `product_variant_id`, `product_variant_name`, `snapshot_date`
 
-**Email profile:** PROFILE_CREATED_DATE, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, DAYS_FROM_CREATION_TO_FIRST_ORDER, WEEKS_FROM_CREATION_TO_ORDER_DATE, MONTHS_FROM_CREATION_TO_ORDER_DATE
+**Product traffic (`query_product_traffic_metrics` only):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
 
-**Email event:** EVENT_DATE, EVENT_NAME, PROFILE_STATUS, PROFILE_CREATION_TYPE, PROFILE_CREATION_FLOW_OR_LIST, CLICKED_EMAIL_SOURCE, CLICKED_EMAIL_SOURCE_TYPE
+**Email profile:** `profile_created_date`, `week`, `month`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `days_from_creation_to_first_order`, `weeks_from_creation_to_order_date`, `months_from_creation_to_order_date`
 
-**Note on CLICKED_EMAIL_SOURCE_TYPE:** values are `Flow` and `Campaign`, and only `Clicked Email` events populate it — `Clicked SMS` and `Clicked email to unsubscribe` are NULL. Grouping by it without an event filter adds a catch-all row whose value is the literal string `None`, covering every event that is not a `Clicked Email` — pair it with `event_names: ["Clicked Email"]` when you want a clean flow-vs-campaign split.
+**Email event:** `event_date`, `week`, `month`, `event_name`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `clicked_email_source`, `clicked_email_source_type`
 
-**Cart funnel (`query_cart_metrics` only — lowercase):** date, week, month, device_type
+**Note on `clicked_email_source_type`:** values are `Flow` and `Campaign`, and only `Clicked Email` events populate it — `Clicked SMS` and `Clicked email to unsubscribe` are NULL. Grouping by it without an event filter adds a catch-all row whose value is the literal string `None`, covering every event that is not a `Clicked Email` — pair it with `event_names: ["Clicked Email"]` when you want a clean flow-vs-campaign split.
 
-**Cohort period values:** For DAYS/WEEKS/MONTHS_SINCE_FIRST_ORDER, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
+**Cart funnel (`query_cart_metrics` only):** date, week, month, device_type
+
+**Cohort period values:** For `days_since_first_order`, `weeks_since_first_order`, and `months_since_first_order`, `0` always represents the first order date itself. `1` is the 1st full day/week/month after that, `2` is the 2nd, and so on.
 
 **Note:** For cohort retention/LTV analysis, prefer `query_customer_cohort_metrics` which returns a pre-pivoted matrix directly.
 
@@ -362,8 +360,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 ```
 query_ad_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-01-31" } },
-  dimensions: ["CHANNEL"],
-  metrics: ["SPEND", "IMPRESSIONS", "CLICKS", "CPM", "CTR"]
+  dimensions: ["channel_name"],
+  metrics: ["spend", "impressions", "clicks", "cpm", "ctr"]
 })
 ```
 
@@ -375,8 +373,8 @@ query_ad_metrics(query={
     date_range: { start: "2026-07-01", end: "2026-07-31" },
     channels: ["Reddit", "Snapchat"]
   },
-  dimensions: ["CHANNEL"],
-  metrics: ["SPEND", "IMPRESSIONS", "CLICKS", "CPM", "CPC", "CTR"]
+  dimensions: ["channel_name"],
+  metrics: ["spend", "impressions", "clicks", "cpm", "cpc", "ctr"]
 })
 ```
 
@@ -401,8 +399,8 @@ query_order_line_metrics(query={
     date_range: { start: "2025-01-01", end: "2025-01-31" },
     transaction_types: ["Order"]
   },
-  dimensions: ["PRODUCT_NAME"],
-  metrics: ["GROSS_SALES", "TOTAL_DISCOUNT", "NET_SALES", "UNIT_COUNT", "ORDER_COUNT"]
+  dimensions: ["product_name"],
+  metrics: ["gross_sales", "total_discount", "net_sales", "unit_count", "order_count"]
 })
 ```
 
@@ -414,8 +412,8 @@ query_order_metrics(query={
     date_range: { start: "2025-01-01", end: "2025-03-31" },
     transaction_types: ["Order", "Refund"]
   },
-  dimensions: ["MONTH", "SALES_CHANNEL"],
-  metrics: ["CONTRIBUTION_MARGIN", "ORDER_COUNT"]
+  dimensions: ["month", "sales_channel"],
+  metrics: ["contribution_margin", "order_count"]
 })
 ```
 
@@ -423,8 +421,8 @@ query_order_metrics(query={
 ```
 query_inventory_metrics(query={
   filters: { company_id: 123, in_stock_only: true },
-  dimensions: ["PRODUCT_NAME", "PRODUCT_VARIANT_NAME"],
-  metrics: ["ON_HAND_UNITS"]
+  dimensions: ["product_name", "product_variant_name"],
+  metrics: ["on_hand_units"]
 })
 ```
 
@@ -461,8 +459,8 @@ query_customer_cohort_metrics(query={
 ```
 query_timeseries_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
-  dimensions: ["WEEK"],
-  metrics: ["DTC_BLENDED_CAC", "AMZN_BLENDED_CAC", "COMBINED_BLENDED_CAC"]
+  dimensions: ["week"],
+  metrics: ["dtc_blended_cac", "amzn_blended_cac", "combined_blended_cac"]
 })
 ```
 
@@ -470,8 +468,8 @@ query_timeseries_metrics(query={
 ```
 query_email_profile_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
-  dimensions: ["MONTH", "PROFILE_STATUS"],
-  metrics: ["PROFILE_COUNT", "ORDER_COUNT", "TOTAL_NET_SALES_MAR", "CONVERSION_RATE"]
+  dimensions: ["month", "profile_status"],
+  metrics: ["profile_count", "order_count", "total_net_sales_mar", "conversion_rate"]
 })
 ```
 
@@ -479,8 +477,8 @@ query_email_profile_metrics(query={
 ```
 query_email_event_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
-  dimensions: ["WEEK", "EVENT_NAME"],
-  metrics: ["TOTAL_EVENT_COUNT", "UNIQUE_EVENT_COUNT"]
+  dimensions: ["week", "event_name"],
+  metrics: ["total_event_count", "unique_event_count"]
 })
 ```
 
@@ -497,7 +495,7 @@ query_email_event_metrics(query={
 })
 ```
 
-**Monthly checkout funnel by device (lowercase names; no channel needed — Shopify only):**
+**Monthly checkout funnel by device (no channel needed — Shopify only):**
 ```
 query_cart_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
