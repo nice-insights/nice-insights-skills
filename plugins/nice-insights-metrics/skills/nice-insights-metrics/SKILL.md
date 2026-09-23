@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.7" }
+metadata: { author: "nice-insights", version: "2.8" }
 ---
 
 # Nice Insights Metrics
@@ -38,7 +38,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 |---|---|
 | `list_companies` | Which companies are available (or when company_id is unknown) |
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
-| `query_additional_sales_metrics` | Manually supplied sales and quantity by category, subcategory, SKU, source period, and currency |
+| `query_additional_sales_metrics` | Manually supplied sales and unit counts (quantity purchased and individual units) by category, subcategory, SKU, source period, and currency |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
@@ -105,7 +105,7 @@ Use the definitions below to infer which metrics to request based on the user's 
 | Tool | Metrics returned when `metrics` is omitted |
 |---|---|
 | `query_ad_metrics` | `spend`, `impressions`, `clicks` |
-| `query_additional_sales_metrics` | `quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
+| `query_additional_sales_metrics` | `sales_quantity`, `individual_item_quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
 | `query_inventory_metrics` | `on_hand_units` |
 | `query_product_traffic_metrics` | `page_views`, `sessions` |
 | `query_email_profile_metrics` | `profile_count`, `order_count`, `total_net_sales_mar` |
@@ -128,17 +128,18 @@ Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon, AppLovin, Go
 
 ### Additional Sales Metrics — `query_additional_sales_metrics`
 
-Manually supplied sales data from each company's Google Sheet. A source row can cover any inclusive start/end date range. The warehouse allocates both quantity and sales evenly across every day in that range before this tool queries the data. A partial date query therefore returns only the allocated share for the requested days.
+Manually supplied sales data from each company's Google Sheet. A source row can cover any inclusive start/end date range. The warehouse allocates both unit measures and sales evenly across every day in that range before this tool queries the data. A partial date query therefore returns only the allocated share for the requested days.
 
 `total_sales` is always in `reporting_currency`. `source_currency` identifies the currency entered in the source sheet; it does not change the currency of `total_sales`.
 
 | Metric | Definition |
 |---|---|
-| `quantity` | Allocated quantity. Daily values can be fractional when a multi-day source quantity is spread evenly. |
+| `sales_quantity` | Allocated share of the quantity the customer purchased, as the company reports it. Daily values can be fractional when a multi-day source quantity is spread evenly. |
+| `individual_item_quantity` | The same allocated sale counted as the number of individual units: a single-unit SKU repeats `sales_quantity`, a multi-unit SKU multiplies it (3 of a 6-count SKU is 3 and 18). |
 | `total_sales` | Allocated sales in the company's reporting currency. |
-| `average_sales_per_unit` | `total_sales` divided by `quantity` at the requested grouping level. |
+| `average_sales_per_unit` | `total_sales` divided by `sales_quantity` — an average price per quantity purchased, not per individual unit. |
 
-Omitting `metrics` returns all three.
+Omitting `metrics` returns all four.
 
 **Filters:** `date_range`, `categories`, `subcategories`, `skus`, `source_currency_codes`, `reporting_currency_codes`.
 
@@ -387,7 +388,7 @@ query_additional_sales_metrics(query={
     reporting_currency_codes: ["USD"]
   },
   dimensions: ["date", "category", "subcategory", "sku", "reporting_currency"],
-  metrics: ["quantity", "total_sales", "average_sales_per_unit"]
+  metrics: ["sales_quantity", "individual_item_quantity", "total_sales", "average_sales_per_unit"]
 })
 ```
 
