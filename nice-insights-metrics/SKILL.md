@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.8" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.9" }
 ---
 
 # Nice Insights Metrics
@@ -30,7 +30,8 @@ Use these tools to answer analytics questions about advertising performance, sal
 > Set `limit` high enough for the complete result (`periods × observed tuples`):
 > the query errors instead of silently returning a partial series when the
 > result would exceed the limit. Inventory, cohort, and timeseries tools retain
-> their existing result shapes and behavior.
+> their existing result shapes and behavior. `query_review_metrics` does not fill
+> periods: a period with no reviews is simply absent from its result.
 
 ## Available Tools
 
@@ -43,6 +44,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
 | `query_product_traffic_metrics` | Product page views and sessions over time by sales channel, marketplace, or product |
+| `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, marketplace, rating, or submission period |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
@@ -71,7 +73,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_additional_sales_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_additional_sales_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -108,6 +110,7 @@ Use the definitions below to infer which metrics to request based on the user's 
 | `query_additional_sales_metrics` | `sales_quantity`, `individual_item_quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
 | `query_inventory_metrics` | `on_hand_units` |
 | `query_product_traffic_metrics` | `page_views`, `sessions` |
+| `query_review_metrics` | `review_count`, `average_rating` — every metric this tool has |
 | `query_email_profile_metrics` | `profile_count`, `order_count`, `total_net_sales_mar` |
 | `query_email_event_metrics` | `total_event_count`, `unique_event_count` |
 
@@ -208,6 +211,32 @@ The tool currently supports the Amazon sales channel. Shopify product traffic wi
 **Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `product_ids`, `product_names`
 
 Amazon Seller Central reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
+
+### Review Metrics — `query_review_metrics`
+
+Product reviews left on each company's Shopify storefront and on Amazon. One tool serves both individual reviews and aggregates; there is no mode switch:
+
+- **Individual reviews:** include both `sales_channel_name` and `review_id` in `dimensions`. Together with the required `company_id`, they are the full review identity, so each row is exactly one review. Add `title`, `review_text`, `rating`, `date`, `product_id`, and `product_name` as dimensions to return those fields. `review_id` alone is **not** unique — always pair it with `sales_channel_name`.
+- **Aggregates:** leave out either identity dimension and rows group by exactly the dimensions you select. Reviews with the same selected values — including identical or null title/text — are combined. No dimensions returns one overall row.
+
+| Metric | Definition |
+|---|---|
+| `review_count` | Distinct `review_id` values in the row. It counts distinct IDs, not the composite identity, so an aggregate that combines several sales channels counts a `review_id` shared across channels once. |
+| `average_rating` | Average star rating on the 1–5 scale. |
+
+Omitting `metrics` returns both.
+
+**Dimensions:** `date`, `week`, `month`, `sales_channel_name`, `review_id`, `product_id`, `product_name`, `title`, `review_text`, `rating`
+
+**Filters:** `date_range`, `sales_channel_names`, `product_ids`, `product_names`, `ratings`, `has_title`, `has_review_text`
+
+- `date` is the **UTC** calendar date the review was submitted, not a company-local business date. `date_range` filters it inclusively; `week` (Monday start) and `month` are derived from it.
+- `sales_channel_name` is the marketplace the review was left on: `Shopify` or `Amazon`. A company can have reviews on both, so leave `sales_channel_names` unset unless the user asks for one marketplace. `product_id` is the Shopify product ID for `Shopify` reviews and the child ASIN for `Amazon` reviews.
+- `rating` is always an integer from 1 through 5. `ratings` filters exact values, e.g. `[1, 2]` for negative reviews.
+- `title` and `review_text` are `null` — never an empty string — for ratings-only reviews. Use `has_review_text: false` to find ratings-only reviews, `true` to keep only reviews with text; the same applies to `has_title`. Report null text as "no written review", not as blank text.
+- `product_names` and `product_ids` match exact values; there is no text search.
+
+**Ordering and limits:** `order_by` is a single `{ field, direction }` object (not a list) naming a selected dimension or metric. The default is the first selected time dimension ascending; otherwise `review_count` descending when it is selected, or the first selected metric descending when it is not. Every tool result is capped by `limit` (default 100, maximum 1,000) in both `inline` and `s3_csv` output modes — there is no pagination and no truncation warning. If `row_count` equals `limit`, assume the result is truncated: raise `limit` (up to 1,000) or narrow `date_range`, `ratings`, or product filters and run several queries.
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
@@ -341,6 +370,8 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Product traffic (`query_product_traffic_metrics` only):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
 
+**Reviews (`query_review_metrics` only):** date, week, month, sales_channel_name, review_id, product_id, product_name, title, review_text, rating
+
 **Email profile:** `profile_created_date`, `week`, `month`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `days_from_creation_to_first_order`, `weeks_from_creation_to_order_date`, `months_from_creation_to_order_date`
 
 **Email event:** `event_date`, `week`, `month`, `event_name`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `clicked_email_source`, `clicked_email_source_type`
@@ -442,6 +473,34 @@ query_product_traffic_metrics(query={
 ```
 
 For an Amazon Vendor Central company, expect `sessions: null` in these results; only `page_views` is available.
+
+**Recent individual 1- and 2-star reviews with their text:**
+```
+query_review_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2026-09-01", end: "2026-09-22" },
+    ratings: [1, 2]
+  },
+  dimensions: ["sales_channel_name", "review_id", "date", "product_name", "title", "review_text", "rating"],
+  metrics: ["review_count"],
+  order_by: { field: "date", direction: "desc" },
+  limit: 100
+})
+```
+
+**Monthly review count and average rating by product:**
+```
+query_review_metrics(query={
+  filters: { company_id: 123, date_range: { start: "2026-01-01", end: "2026-09-22" } },
+  dimensions: ["month", "product_name"],
+  metrics: ["review_count", "average_rating"],
+  limit: 1000,
+  output_mode: "s3_csv"
+})
+```
+
+If `row_count` comes back as 1,000, split the `date_range` and query again.
 
 **Monthly cumulative LTV by customer cohort:**
 ```
