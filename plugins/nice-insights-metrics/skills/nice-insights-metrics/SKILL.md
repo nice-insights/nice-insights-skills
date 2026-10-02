@@ -44,7 +44,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
 | `query_product_traffic_metrics` | Product page views and sessions over time by sales channel, marketplace, or product |
-| `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, marketplace, rating, or submission period |
+| `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, review source, marketplace, rating, or submission period |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
@@ -218,21 +218,22 @@ Amazon Seller Central reports traffic at ASIN/product grain, not SKU/variant gra
 
 Product reviews left on each company's Shopify storefront and on Amazon. One tool serves both individual reviews and aggregates; there is no mode switch:
 
-- **Individual reviews:** include both `sales_channel_name` and `review_id` in `dimensions`. Together with the required `company_id`, they are the full review identity, so each row is exactly one review. Add `title`, `review_text`, `rating`, `date`, `product_id`, and `product_name` as dimensions to return those fields. `review_id` alone is **not** unique — always pair it with `sales_channel_name`.
+- **Individual reviews:** include `sales_channel_name` and `review_id` in `dimensions`. Together with the required `company_id`, they are the full review identity, so each row is exactly one review. Add `review_source`, `title`, `review_text`, `rating`, `date`, `product_id`, and `product_name` as optional dimensions to return those fields. `review_id` alone is **not** unique — always pair it with `sales_channel_name`.
 - **Aggregates:** leave out either identity dimension and rows group by exactly the dimensions you select. Reviews with the same selected values — including identical or null title/text — are combined. No dimensions returns one overall row.
 
 | Metric | Definition |
 |---|---|
-| `review_count` | Distinct `review_id` values in the row. It counts distinct IDs, not the composite identity, so an aggregate that combines several sales channels counts a `review_id` shared across channels once. |
+| `review_count` | Distinct `review_id` values in the row. It counts distinct IDs, not the `(sales_channel_name, review_id)` identity, so an aggregate that combines several review sources or sales channels counts a `review_id` shared across them once. |
 | `average_rating` | Average star rating on the 1–5 scale. |
 
 Omitting `metrics` returns both.
 
-**Dimensions:** `date`, `week`, `month`, `sales_channel_name`, `review_id`, `product_id`, `product_name`, `title`, `review_text`, `rating`
+**Dimensions:** `date`, `week`, `month`, `review_source`, `sales_channel_name`, `review_id`, `product_id`, `product_name`, `title`, `review_text`, `rating`
 
-**Filters:** `date_range`, `sales_channel_names`, `product_ids`, `product_names`, `ratings`, `has_title`, `has_review_text`
+**Filters:** `date_range`, `review_sources`, `sales_channel_names`, `product_ids`, `product_names`, `ratings`, `has_title`, `has_review_text`
 
 - `date` is the **UTC** calendar date the review was submitted, not a company-local business date. `date_range` filters it inclusively; `week` (Monday start) and `month` are derived from it.
+- `review_source` is the review platform the review came from: `Bazaarvoice` or `Additional Reviews` (reviews collected manually by the Nice Insights team). It is not the marketplace — use `review_sources` only when the user asks about a specific platform.
 - `sales_channel_name` is the marketplace the review was left on: `Shopify` or `Amazon`. A company can have reviews on both, so leave `sales_channel_names` unset unless the user asks for one marketplace. `product_id` is the Shopify product ID for `Shopify` reviews and the child ASIN for `Amazon` reviews.
 - `rating` is always an integer from 1 through 5. `ratings` filters exact values, e.g. `[1, 2]` for negative reviews.
 - `title` and `review_text` are `null` — never an empty string — for ratings-only reviews. Use `has_review_text: false` to find ratings-only reviews, `true` to keep only reviews with text; the same applies to `has_title`. Report null text as "no written review", not as blank text.
@@ -372,7 +373,7 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Product traffic (`query_product_traffic_metrics` only):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
 
-**Reviews (`query_review_metrics` only):** date, week, month, sales_channel_name, review_id, product_id, product_name, title, review_text, rating
+**Reviews (`query_review_metrics` only):** date, week, month, review_source, sales_channel_name, review_id, product_id, product_name, title, review_text, rating
 
 **Email profile:** `profile_created_date`, `week`, `month`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `days_from_creation_to_first_order`, `weeks_from_creation_to_order_date`, `months_from_creation_to_order_date`
 
