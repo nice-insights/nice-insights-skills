@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.10" }
+metadata: { author: "nice-insights", version: "2.11" }
 ---
 
 # Nice Insights Metrics
@@ -168,6 +168,8 @@ Product-level sales data. Use for revenue, discounts, refunds, units, and produc
 | `average_order_value` | Average net sales per order (context-dependent — see note below) |
 | `average_unit_price` | Average net sales per unit (context-dependent — see note below) |
 
+Available sales channels: Amazon, Shopify, TikTok, Walmart. See **Walmart limitations** below before reporting Walmart figures.
+
 ### Order Metrics — `query_order_metrics`
 
 Order-level costs and margins. Use for profitability, fee analysis, and acquisition economics. `date_range` filters by order date.
@@ -180,6 +182,16 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 | `customer_count` | Distinct customers |
 | `average_contribution_margin` | Average contribution margin per order (context-dependent) |
 | `average_acquisition_margin` | Average acquisition margin per new customer (context-dependent) |
+
+Available sales channels: Amazon, Shopify, TikTok, Walmart.
+
+**Walmart limitations** (both `query_order_line_metrics` and `query_order_metrics`):
+
+- Walmart provides no customer identifier, so `customer_id` is null and `customer_count` is 0. The first-order filters and dimensions do not apply to Walmart: `customer_ids` (order line only), `first_order_date_range` (order only), `max_days_since_first_order`, the order line `days_since_first_order`, `weeks_since_first_order`, and `months_since_first_order` dimensions, and the order `first_order_at`, `days_from_first_order_to_order_date`, `weeks_from_first_order_to_order_date`, and `months_from_first_order_to_order_date` dimensions.
+- `customer_type` is classified by product, not by customer history: an order is `Repeat` when every line is a filter replacement or refill, otherwise `New`.
+- `cogs` and `total_discount` are not populated, and `contribution_margin` is 0. `acquisition_margin` is populated but has no customers behind it, so `average_acquisition_margin` is null for Walmart, and a query that includes Walmart alongside other channels counts Walmart's acquisition margin without counting any Walmart customers, which skews the blended average. Do not report Walmart profitability or acquisition margin from these tools; exclude Walmart with `sales_channels` when reporting cross-channel `average_acquisition_margin`.
+- Walmart rows have no revenue recognition or first order date, so they drop out when `date_column` is `revenue_recognition_date` or `first_order_date`. Use the default `order_date`.
+- Walmart rows have no subscription flag or subscription type, so any `is_subscription` or `subscription_types` filter excludes them.
 
 ### Inventory Metrics — `query_inventory_metrics`
 
@@ -263,7 +275,7 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 
 - `first_order_product_name` — filter to customers whose first order included this product name
 - `first_order_sku` — filter to customers whose first order included this SKU
-- `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok
+- `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok. Walmart is not supported for cohorts because it has no customer identifier.
 - `subscription_types` — filter by subscription type: First, Recurring, Unknown
 
 ### Cart Funnel Metrics — `query_cart_metrics`
@@ -449,6 +461,20 @@ query_order_metrics(query={
   },
   dimensions: ["month", "sales_channel"],
   metrics: ["contribution_margin", "order_count"]
+})
+```
+
+**Monthly Walmart net sales and orders (excluding refunds):**
+```
+query_order_line_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2026-07-01", end: "2026-09-30" },
+    sales_channels: ["Walmart"],
+    transaction_types: ["Order"]
+  },
+  dimensions: ["month"],
+  metrics: ["gross_sales", "net_sales", "unit_count", "order_count"]
 })
 ```
 
