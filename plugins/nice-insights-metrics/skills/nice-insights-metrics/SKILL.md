@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.9" }
+metadata: { author: "nice-insights", version: "2.10" }
 ---
 
 # Nice Insights Metrics
@@ -127,7 +127,9 @@ Every other tool requires explicit metric selection and returns no metric column
 | `cpc` | Cost per click (`spend` / `clicks`) |
 | `ctr` | Click-through rate as a percentage (`clicks` / `impressions` × 100) |
 
-Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat.
+Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat, Walmart.
+
+For Walmart, `platform_name` is the Walmart Ads campaign type (`sba`, `sponsoredProducts`, `video`).
 
 ### Additional Sales Metrics — `query_additional_sales_metrics`
 
