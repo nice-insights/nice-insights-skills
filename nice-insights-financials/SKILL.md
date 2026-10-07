@@ -1,7 +1,7 @@
 ---
 name: nice-insights-financials
 description: MUST load before querying the Nice Insights monthly financial metrics MCP tools. Covers scenario-safe Actuals, budget, and forecast aggregations and pairwise comparisons across financial statement and account hierarchy fields.
-metadata: { author: "nice-insights", version: "1.6" }
+metadata: { author: "nice-insights", version: "1.7" }
 ---
 
 # Nice Insights Financials
@@ -80,7 +80,9 @@ Pass `line_item_types` to change it. `["Calculation"]` returns the stated totals
 filters: { ..., line_item_types: ["Calculation"], account_line_items: ["Net Income"] }
 ```
 
-Only some companies publish `Calculation` rows — those whose detail sections do not sum to the Net Income their own statement states, so the stated figure is the only correct one. For every other company, a `line_item_types: ["Calculation"]` query returns no rows, and that is not an error: for those companies the sections **do** add up, so compute the figure yourself with the formula in the next section. Never present a computed total as the company's Net Income when a stated one is available.
+Only some companies publish `Calculation` rows. For every other company, a `line_item_types: ["Calculation"]` query returns no rows, and that is not an error: for those companies the sections **do** add up, so compute the figure yourself with the formula in the next section. Never present a computed total as the company's Net Income when a stated one is available.
+
+Coverage can also differ **by scenario** within one company. Hydroviv publishes `Calculation` rows for Actuals and Budget only (its Budget has no `Amortization` or `Reported EBITDA` row); its forecasts (`F1`, `F2`) have detail lines only. So a `Calculation` comparison of Actuals against `F2` returns an Actuals side and nothing for the forecast. That is a gap in the source statements, not a zero. Compute the forecast figure with the formula and say that it is computed.
 
 `Calculation` rows have a `null` `parent_account_category` — they belong to no single section. **Requesting both classes at once requires `line_item_type` in `dimensions`**, so the two never land in the same bucket. This is enforced: a mixed-class query without that dimension is rejected rather than answered, the same way a query without an exact scenario must group by `scenario_type` and `scenario_name`.
 
