@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.11" }
+metadata: { author: "nice-insights", version: "2.13" }
 ---
 
 # Nice Insights Metrics
@@ -116,6 +116,20 @@ Use the definitions below to infer which metrics to request based on the user's 
 
 Every other tool requires explicit metric selection and returns no metric columns without it.
 
+**Sales channel names.** Amazon and Walmart are each split by how the company sells there. Use these exact names in every `sales_channels` / `sales_channel_names` filter and when labelling results:
+
+| Channel | Meaning | Order-level data? |
+|---|---|---|
+| `Amazon 1P` | Amazon Vendor Central (first party) — companies 71, 72 and 73 | No — units and net sales only |
+| `Amazon 3P` | Amazon Seller Central marketplace (third party) — every other company | Yes |
+| `Walmart 3P` | Walmart.com marketplace orders (third party) | Yes, but no customer identifier — see **Walmart 3P limitations** |
+| `Walmart Retail - US` | Walmart US store (POS) sales from Additional Sales | No — units and net sales only |
+| `Walmart Retail - Canada` | Walmart Canada store (POS) sales from Additional Sales | No — units and net sales only |
+| `Target Retail` | Target store (POS) sales from Additional Sales | No — units and net sales only |
+| `Shopify`, `TikTok` | Direct-to-consumer storefronts | Yes |
+
+Never merge `Walmart 3P` with the Walmart Retail channels, or `Amazon 1P` and `Amazon 3P` — they are different sources. `Walmart Retail - US` and `Walmart Retail - Canada` are separate countries; combine them only when the user asks for all Walmart store sales. When the user just says "Amazon" or "Walmart", query every matching channel the tool offers and label each one.
+
 ### Ad Metrics — `query_ad_metrics`
 
 | Metric | Definition |
@@ -127,9 +141,11 @@ Every other tool requires explicit metric selection and returns no metric column
 | `cpc` | Cost per click (`spend` / `clicks`) |
 | `ctr` | Click-through rate as a percentage (`clicks` / `impressions` × 100) |
 
-Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon, AppLovin, Google, Meta, Reddit, Snapchat, Walmart.
+Available channels: Additional Ad Spend, Tatari TV, Tiktok, Amazon 1P, Amazon 3P, AppLovin, Google, Meta, Reddit, Snapchat, Walmart 3P.
 
-For Walmart, `platform_name` is the Walmart Ads campaign type (`sba`, `sponsoredProducts`, `video`).
+Amazon Ads are `Amazon 1P` for the Amazon Vendor Central companies (71, 72 and 73) and `Amazon 3P` for every other company. `Walmart 3P` is Walmart Ads (Walmart Connect), named to match the Walmart.com sales channel.
+
+For Walmart 3P, `platform_name` is the Walmart Ads campaign type (`sba`, `sponsoredProducts`, `video`).
 
 ### Additional Sales Metrics — `query_additional_sales_metrics`
 
@@ -150,6 +166,8 @@ Omitting `metrics` returns all four.
 
 Use `source_start_date` and `source_end_date` dimensions to trace an allocated daily result back to the source period. Use `source_currency` and `reporting_currency` dimensions when currency context must be visible in the result.
 
+The same sales also appear in `query_order_line_metrics` as the retail channels (`Walmart Retail - US`, `Walmart Retail - Canada`, `Target Retail`), with `total_sales` as `net_sales` and `sales_quantity` as `unit_count`. `subcategory` carries the same retailer name. For total sales across all channels, use `query_order_line_metrics` alone; never add this tool's totals to order line totals. Additional Sales has no individual orders — see **Channels without order-level data** under Order Line Metrics.
+
 ### Order Line Metrics — `query_order_line_metrics`
 
 Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis. `date_range` filters by the column selected in `date_column` (default: `order_date`). Set `date_column` to `revenue_recognition_date` or `first_order_date` to filter and group by those dates instead.
@@ -163,12 +181,29 @@ Product-level sales data. Use for revenue, discounts, refunds, units, and produc
 | `shipping_price` | Shipping revenue charged to the customer |
 | `cogs` | Cost of goods sold |
 | `unit_count` | Units sold (refunded units are excluded) |
-| `order_count` | Distinct orders (excludes refund transactions unless `transaction_type` is a dimension) |
-| `customer_count` | Distinct customers |
-| `average_order_value` | Average net sales per order (context-dependent — see note below) |
-| `average_unit_price` | Average net sales per unit (context-dependent — see note below) |
+| `order_count` | Distinct orders (excludes refund transactions unless `transaction_type` is a dimension). Only rows with an `order_id` are counted — see **Channels without order-level data** below |
+| `customer_count` | Distinct customers. Only rows with a `customer_id` are counted |
+| `average_order_value` | Average net sales per order. Only rows with an `order_id` contribute to the numerator and the denominator, so channels without order-level data (`Amazon 1P` and the retail channels) don't affect AOV (context-dependent — see note below) |
+| `average_unit_price` | Average net sales per unit (context-dependent — see note below). Includes `Amazon 1P` and retail channel rows, which do report units and net sales |
 
-Available sales channels: Amazon, Shopify, TikTok, Walmart. See **Walmart limitations** below before reporting Walmart figures.
+Available sales channels: Amazon 1P, Amazon 3P, Shopify, TikTok, Walmart 3P, Walmart Retail - US, Walmart Retail - Canada, Target Retail (see **Sales channel names** above). See **Walmart 3P limitations** and **Channels without order-level data** below before reporting figures for those channels.
+
+**Channels without order-level data** (`query_order_line_metrics`, companies 71, 72 and 73):
+
+These companies' order lines include channels that report **units and net sales only, with no individual orders**:
+
+- **`Amazon 1P`** — Amazon Vendor Central (one row per product per day).
+- **`Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail`** — retail store sales from the company's manually supplied Additional Sales sheet.
+
+For these rows `order_id`, `customer_id`, `order_sequence`, first-order and days/weeks/months-since-first-order fields, and subscription fields are null. Consequences:
+
+- **Order-level metrics are not available, not zero.** `order_count`, `customer_count` and `average_order_value` come back as 0 or null when only these channels are selected — that means the source has no order records, **not** that there were zero customer orders. Example: "Amazon 1P generated $50,000 in net sales and 2,000 units. Order count and AOV are not available for Amazon 1P because Vendor Central does not report individual orders." Never write "0 orders" or "no orders" for these channels.
+- **Whenever an answer for company 71, 72 or 73 involves order counts, AOV, customers, order sequence, or new-vs-repeat behaviour**, say that those figures cover only channels with order-level data (`Shopify`, `TikTok`, `Walmart 3P`) and that `Amazon 1P` and retail channel volume is excluded from them. Report those channels' `net_sales` and `unit_count` separately. Do not divide total net sales by `order_count` yourself — use `average_order_value`, which already excludes rows without an order.
+- **Populated measures:** only `net_sales` and `unit_count`. For `Amazon 1P`, `gross_sales`, `total_discount`, `total_refunds`, `shipping_price` and `cogs` are 0 because the source does not report them — do not report Amazon 1P gross sales, discounts, refunds or margins, and expect `gross_sales` < `net_sales` whenever Amazon 1P rows are included.
+- **Filters and dimensions that drop or bucket these rows:** `order_sequences`, `customer_ids`, `max_days_since_first_order`, `is_subscription` and `subscription_types` filters exclude them; `date_column` = `revenue_recognition_date` or `first_order_date` excludes them (use the default `order_date`). Grouping by `order_id`, `customer_id`, `order_sequence` or the since-first-order dimensions puts them in a null group — label it "not available", not as a real order or customer. `Amazon 1P` rows have no `sku`, so `skus` filters exclude them; use `product_names` instead.
+- **`customer_type` on `Amazon 1P` rows is inferred from the product**, not from customer history: refill and replacement products are `Repeat`, everything else is `New`. Do not present it as measured new-vs-repeat customers. Retail channel rows have no `customer_type`, so a `customer_types` filter excludes them.
+- **Not in other order tools:** these rows are not in `query_order_metrics` or `query_customer_cohort_metrics`. Use `query_order_line_metrics` for total net sales and units across all channels.
+- **Don't double count with `query_additional_sales_metrics`.** That tool reads the same Additional Sales source (`total_sales` = the retail channels' `net_sales`, `sales_quantity` = `unit_count`). Use it only for source-level detail (category, source period, currency, individual item quantity) — never add its totals to order line totals.
 
 ### Order Metrics — `query_order_metrics`
 
@@ -183,15 +218,15 @@ Order-level costs and margins. Use for profitability, fee analysis, and acquisit
 | `average_contribution_margin` | Average contribution margin per order (context-dependent) |
 | `average_acquisition_margin` | Average acquisition margin per new customer (context-dependent) |
 
-Available sales channels: Amazon, Shopify, TikTok, Walmart.
+Available sales channels: Amazon 3P, Shopify, TikTok, Walmart 3P. `Amazon 1P` and the retail channels have no orders, so they are only in `query_order_line_metrics`.
 
-**Walmart limitations** (both `query_order_line_metrics` and `query_order_metrics`):
+**Walmart 3P limitations** (both `query_order_line_metrics` and `query_order_metrics`):
 
-- Walmart provides no customer identifier, so `customer_id` is null and `customer_count` is 0. The first-order filters and dimensions do not apply to Walmart: `customer_ids` (order line only), `first_order_date_range` (order only), `max_days_since_first_order`, the order line `days_since_first_order`, `weeks_since_first_order`, and `months_since_first_order` dimensions, and the order `first_order_at`, `days_from_first_order_to_order_date`, `weeks_from_first_order_to_order_date`, and `months_from_first_order_to_order_date` dimensions.
+- Walmart 3P (Walmart.com) provides no customer identifier, so `customer_id` is null and `customer_count` is 0. The first-order filters and dimensions do not apply to Walmart 3P: `customer_ids` (order line only), `first_order_date_range` (order only), `max_days_since_first_order`, the order line `days_since_first_order`, `weeks_since_first_order`, and `months_since_first_order` dimensions, and the order `first_order_at`, `days_from_first_order_to_order_date`, `weeks_from_first_order_to_order_date`, and `months_from_first_order_to_order_date` dimensions.
 - `customer_type` is classified by product, not by customer history: an order is `Repeat` when every line is a filter replacement or refill, otherwise `New`.
-- `cogs` and `total_discount` are not populated, and `contribution_margin` is 0. `acquisition_margin` is populated but has no customers behind it, so `average_acquisition_margin` is null for Walmart, and a query that includes Walmart alongside other channels counts Walmart's acquisition margin without counting any Walmart customers, which skews the blended average. Do not report Walmart profitability or acquisition margin from these tools; exclude Walmart with `sales_channels` when reporting cross-channel `average_acquisition_margin`.
-- Walmart rows have no revenue recognition or first order date, so they drop out when `date_column` is `revenue_recognition_date` or `first_order_date`. Use the default `order_date`.
-- Walmart rows have no subscription flag or subscription type, so any `is_subscription` or `subscription_types` filter excludes them.
+- `cogs` and `total_discount` are not populated, and `contribution_margin` is 0. `acquisition_margin` is populated but has no customers behind it, so `average_acquisition_margin` is null for Walmart 3P, and a query that includes Walmart 3P alongside other channels counts its acquisition margin without counting any Walmart 3P customers, which skews the blended average. Do not report Walmart 3P profitability or acquisition margin from these tools; exclude Walmart 3P with `sales_channels` when reporting cross-channel `average_acquisition_margin`.
+- Walmart 3P rows have no revenue recognition or first order date, so they drop out when `date_column` is `revenue_recognition_date` or `first_order_date`. Use the default `order_date`.
+- Walmart 3P rows have no subscription flag or subscription type, so any `is_subscription` or `subscription_types` filter excludes them.
 
 ### Inventory Metrics — `query_inventory_metrics`
 
@@ -203,6 +238,8 @@ Current on-hand stock levels. Use for "how many units are in stock" questions, b
 
 **Dimensions:** `sales_channel`, `product_id`, `product_name`, `product_variant_id`, `product_variant_name`, `snapshot_date`
 
+Sales channels: `Amazon 1P` (Amazon Vendor Central inventory) and `Shopify`. Amazon 3P inventory is not available.
+
 **Additional filter** (unique to this tool):
 
 - `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `product_variant_name` and look for `on_hand_units` of 0.
@@ -211,24 +248,24 @@ Current on-hand stock levels. Use for "how many units are in stock" questions, b
 
 Product-level traffic over time. Use for page-view and session trends, product traffic rankings, and product comparisons. The default metrics are both `page_views` and `sessions`.
 
-> **Amazon Vendor Central limitation:** Vendor Central sources provide glance views, exposed as `page_views`, but do not provide sessions. `sessions` is therefore `null` for Vendor Central data. Calendar periods added to complete a series also return `null` for every metric when no source rows exist. Do not report null Vendor Central sessions as zero. Amazon Seller Central sources provide both metrics.
+> **`Amazon 1P` limitation:** Amazon Vendor Central provides glance views, exposed as `page_views`, but does not provide sessions. `sessions` is therefore `null` for `Amazon 1P`. Calendar periods added to complete a series also return `null` for every metric when no source rows exist. Do not report null Amazon 1P sessions as zero. `Amazon 3P` (Seller Central) provides both metrics.
 
-The tool currently supports the Amazon sales channel. Shopify product traffic will be added after its separate GraphQL data build is available.
+The tool currently supports the `Amazon 1P` and `Amazon 3P` sales channels. Shopify product traffic will be added after its separate GraphQL data build is available.
 
 | Metric | Definition |
 |---|---|
 | `page_views` | Product-detail page views. Vendor Central glance views are mapped to this metric. |
-| `sessions` | Product-detail sessions. Unavailable for Amazon Vendor Central data. |
+| `sessions` | Product-detail sessions. Unavailable for `Amazon 1P`. |
 
 **Dimensions:** `date`, `week`, `month`, `sales_channel`, `marketplace_id`, `marketplace_name`, `product_id`, `product_name`
 
 **Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `product_ids`, `product_names`
 
-Amazon Seller Central reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
+`Amazon 3P` (Seller Central) reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
 
 ### Review Metrics — `query_review_metrics`
 
-Product reviews left on each company's Shopify storefront and on Amazon. One tool serves both individual reviews and aggregates; there is no mode switch:
+Product reviews left on each company's Shopify storefront and on Amazon (`Amazon 1P`). One tool serves both individual reviews and aggregates; there is no mode switch:
 
 - **Individual reviews:** include `sales_channel_name` and `review_id` in `dimensions`. Together with the required `company_id`, they are the full review identity, so each row is exactly one review. Add `review_source`, `title`, `review_text`, `rating`, `date`, `product_id`, and `product_name` as optional dimensions to return those fields. `review_id` alone is **not** unique — always pair it with `sales_channel_name`.
 - **Aggregates:** leave out either identity dimension and rows group by exactly the dimensions you select. Reviews with the same selected values — including identical or null title/text — are combined. No dimensions returns one overall row.
@@ -246,7 +283,7 @@ Omitting `metrics` returns both.
 
 - `date` is the **UTC** calendar date the review was submitted, not a company-local business date. `date_range` filters it inclusively; `week` (Monday start) and `month` are derived from it.
 - `review_source` is the review platform the review came from: `Bazaarvoice` or `Additional Reviews` (reviews collected manually by the Nice Insights team). It is not the marketplace — use `review_sources` only when the user asks about a specific platform.
-- `sales_channel_name` is the marketplace the review was left on: `Shopify` or `Amazon`. A company can have reviews on both, so leave `sales_channel_names` unset unless the user asks for one marketplace. `product_id` is the Shopify product ID for `Shopify` reviews and the child ASIN for `Amazon` reviews.
+- `sales_channel_name` is the marketplace the review was left on: `Shopify` or `Amazon 1P`. A company can have reviews on both, so leave `sales_channel_names` unset unless the user asks for one marketplace. `product_id` is the Shopify product ID for `Shopify` reviews and the child ASIN for `Amazon 1P` reviews.
 - `rating` is always an integer from 1 through 5. `ratings` filters exact values, e.g. `[1, 2]` for negative reviews.
 - `title` and `review_text` are `null` — never an empty string — for ratings-only reviews. Use `has_review_text: false` to find ratings-only reviews, `true` to keep only reviews with text; the same applies to `has_title`. Report null text as "no written review", not as blank text.
 - `product_names` and `product_ids` match exact values; there is no text search.
@@ -275,7 +312,7 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 
 - `first_order_product_name` — filter to customers whose first order included this product name
 - `first_order_sku` — filter to customers whose first order included this SKU
-- `sales_channels` — filter by sales channel: Amazon, Shopify, TikTok. Walmart is not supported for cohorts because it has no customer identifier.
+- `sales_channels` — filter by sales channel: Amazon 3P, Shopify, TikTok. `Walmart 3P` is not supported for cohorts because it has no customer identifier, and `Amazon 1P` and the retail channels have no customers at all.
 - `subscription_types` — filter by subscription type: First, Recurring, Unknown
 
 ### Cart Funnel Metrics — `query_cart_metrics`
@@ -312,7 +349,7 @@ Blended CAC over time. Use for trend analysis of customer acquisition efficiency
 | Metric | Definition |
 |---|---|
 | `dtc_blended_cac` | DTC ad spend ÷ (Shopify + TikTok new customers) |
-| `amzn_blended_cac` | Amazon ad spend ÷ Amazon new customers |
+| `amzn_blended_cac` | Amazon ad spend ÷ Amazon new customers (Amazon 3P only — `Amazon 1P` has no customers) |
 | `combined_blended_cac` | (DTC + Amazon ad spend) ÷ all new customers |
 | `shopify_blended_cac` | (Meta + Google + Microsoft + Pinterest spend) ÷ Shopify new customers |
 | `tiktok_blended_cac` | TikTok ad spend ÷ TikTok new customers |
@@ -464,19 +501,33 @@ query_order_metrics(query={
 })
 ```
 
-**Monthly Walmart net sales and orders (excluding refunds):**
+**Monthly Walmart.com net sales and orders (excluding refunds):**
 ```
 query_order_line_metrics(query={
   filters: {
     company_id: 123,
     date_range: { start: "2026-07-01", end: "2026-09-30" },
-    sales_channels: ["Walmart"],
+    sales_channels: ["Walmart 3P"],
     transaction_types: ["Order"]
   },
   dimensions: ["month"],
   metrics: ["gross_sales", "net_sales", "unit_count", "order_count"]
 })
 ```
+
+**Net sales, units and orders by channel for a company with Amazon 1P and retail sales (excluding refunds):**
+```
+query_order_line_metrics(query={
+  filters: {
+    company_id: 72,
+    date_range: { start: "2026-07-01", end: "2026-09-30" },
+    transaction_types: ["Order"]
+  },
+  dimensions: ["sales_channel"],
+  metrics: ["net_sales", "unit_count", "order_count", "average_order_value"]
+})
+```
+`Amazon 1P`, `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` return net sales and units with `order_count` 0 and a null `average_order_value`. Report their order count and AOV as "not available (source has no order-level data)", and state that the company-wide order count and AOV cover only the channels with orders (`Shopify`, `TikTok`, `Walmart 3P`).
 
 **Current on-hand inventory by product variant:**
 ```
@@ -493,7 +544,7 @@ query_product_traffic_metrics(query={
   filters: {
     company_id: 123,
     date_range: { start: "2025-01-01", end: "2025-01-31" },
-    sales_channels: ["Amazon"]
+    sales_channels: ["Amazon 3P"]
   },
   dimensions: ["date", "product_id", "product_name"],
   metrics: ["page_views", "sessions"],
@@ -501,7 +552,7 @@ query_product_traffic_metrics(query={
 })
 ```
 
-For an Amazon Vendor Central company, expect `sessions: null` in these results; only `page_views` is available.
+For `Amazon 1P` (companies 71, 72 and 73), expect `sessions: null`; only `page_views` is available.
 
 **Recent individual 1- and 2-star reviews with their text:**
 ```
