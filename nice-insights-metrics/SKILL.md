@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, additional sales, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, manually supplied sales and quantity, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales, discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.13" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.14" }
 ---
 
 # Nice Insights Metrics
@@ -39,7 +39,6 @@ Use these tools to answer analytics questions about advertising performance, sal
 |---|---|
 | `list_companies` | Which companies are available (or when company_id is unknown) |
 | `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
-| `query_additional_sales_metrics` | Manually supplied sales and unit counts (quantity purchased and individual units) by category, subcategory, SKU, source period, and currency |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
@@ -73,7 +72,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_additional_sales_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -107,7 +106,6 @@ Use the definitions below to infer which metrics to request based on the user's 
 | Tool | Metrics returned when `metrics` is omitted |
 |---|---|
 | `query_ad_metrics` | `spend`, `impressions`, `clicks` |
-| `query_additional_sales_metrics` | `sales_quantity`, `individual_item_quantity`, `total_sales`, `average_sales_per_unit` — every metric this tool has |
 | `query_inventory_metrics` | `on_hand_units` |
 | `query_product_traffic_metrics` | `page_views`, `sessions` |
 | `query_review_metrics` | `review_count`, `average_rating` — every metric this tool has |
@@ -147,27 +145,6 @@ Amazon Ads are `Amazon 1P` for the Amazon Vendor Central companies (71, 72 and 7
 
 For Walmart 3P, `platform_name` is the Walmart Ads campaign type (`sba`, `sponsoredProducts`, `video`).
 
-### Additional Sales Metrics — `query_additional_sales_metrics`
-
-Manually supplied sales data from each company's Google Sheet. A source row can cover any inclusive start/end date range. The warehouse allocates both unit measures and sales evenly across every day in that range before this tool queries the data. A partial date query therefore returns only the allocated share for the requested days.
-
-`total_sales` is always in `reporting_currency`. `source_currency` identifies the currency entered in the source sheet; it does not change the currency of `total_sales`.
-
-| Metric | Definition |
-|---|---|
-| `sales_quantity` | Allocated share of the quantity the customer purchased, as the company reports it. Daily values can be fractional when a multi-day source quantity is spread evenly. |
-| `individual_item_quantity` | The same allocated sale counted as the number of individual units: a single-unit SKU repeats `sales_quantity`, a multi-unit SKU multiplies it (3 of a 6-count SKU is 3 and 18). |
-| `total_sales` | Allocated sales in the company's reporting currency. |
-| `average_sales_per_unit` | `total_sales` divided by `sales_quantity` — an average price per quantity purchased, not per individual unit. |
-
-Omitting `metrics` returns all four.
-
-**Filters:** `date_range`, `categories`, `subcategories`, `skus`, `source_currency_codes`, `reporting_currency_codes`.
-
-Use `source_start_date` and `source_end_date` dimensions to trace an allocated daily result back to the source period. Use `source_currency` and `reporting_currency` dimensions when currency context must be visible in the result.
-
-The same sales also appear in `query_order_line_metrics` as the retail channels (`Walmart Retail - US`, `Walmart Retail - Canada`, `Target Retail`), with `total_sales` as `net_sales` and `sales_quantity` as `unit_count`. `subcategory` carries the same retailer name. For total sales across all channels, use `query_order_line_metrics` alone; never add this tool's totals to order line totals. Additional Sales has no individual orders — see **Channels without order-level data** under Order Line Metrics.
-
 ### Order Line Metrics — `query_order_line_metrics`
 
 Product-level sales data. Use for revenue, discounts, refunds, units, and product mix analysis. `date_range` filters by the column selected in `date_column` (default: `order_date`). Set `date_column` to `revenue_recognition_date` or `first_order_date` to filter and group by those dates instead.
@@ -200,10 +177,11 @@ For these rows `order_id`, `customer_id`, `order_sequence`, first-order and days
 - **Order-level metrics are not available, not zero.** `order_count`, `customer_count` and `average_order_value` come back as 0 or null when only these channels are selected — that means the source has no order records, **not** that there were zero customer orders. Example: "Amazon 1P generated $50,000 in net sales and 2,000 units. Order count and AOV are not available for Amazon 1P because Vendor Central does not report individual orders." Never write "0 orders" or "no orders" for these channels.
 - **Whenever an answer for company 71, 72 or 73 involves order counts, AOV, customers, order sequence, or new-vs-repeat behaviour**, say that those figures cover only channels with order-level data (`Shopify`, `TikTok`, `Walmart 3P`) and that `Amazon 1P` and retail channel volume is excluded from them. Report those channels' `net_sales` and `unit_count` separately. Do not divide total net sales by `order_count` yourself — use `average_order_value`, which already excludes rows without an order.
 - **Populated measures:** only `net_sales` and `unit_count`. For `Amazon 1P`, `gross_sales`, `total_discount`, `total_refunds`, `shipping_price` and `cogs` are 0 because the source does not report them — do not report Amazon 1P gross sales, discounts, refunds or margins, and expect `gross_sales` < `net_sales` whenever Amazon 1P rows are included.
+- **Retail channel figures are allocated, not observed per day.** Each Additional Sales sheet row covers an inclusive start/end date range, and its `net_sales` and `unit_count` are spread evenly across every day in that range. A daily or weekly breakdown, or a date range that covers only part of a source period, therefore returns an allocated share, not sales measured on those dates, and daily values can be fractional. Do not present day-to-day or week-to-week movement in these channels as retailer performance; prefer totals over whole source periods. `net_sales` is in the company's reporting currency. `unit_count` is the quantity purchased as the company reports it, not individual items in a multipack (3 of a 6-count SKU is 3, not 18).
 - **Filters and dimensions that drop or bucket these rows:** `order_sequences`, `customer_ids`, `max_days_since_first_order`, `is_subscription` and `subscription_types` filters exclude them; `date_column` = `revenue_recognition_date` or `first_order_date` excludes them (use the default `order_date`). Grouping by `order_id`, `customer_id`, `order_sequence` or the since-first-order dimensions puts them in a null group — label it "not available", not as a real order or customer. `Amazon 1P` rows have no `sku`, so `skus` filters exclude them; use `product_names` instead.
 - **`customer_type` on `Amazon 1P` rows is inferred from the product**, not from customer history: refill and replacement products are `Repeat`, everything else is `New`. Do not present it as measured new-vs-repeat customers. Retail channel rows have no `customer_type`, so a `customer_types` filter excludes them.
 - **Not in other order tools:** these rows are not in `query_order_metrics` or `query_customer_cohort_metrics`. Use `query_order_line_metrics` for total net sales and units across all channels.
-- **Don't double count with `query_additional_sales_metrics`.** That tool reads the same Additional Sales source (`total_sales` = the retail channels' `net_sales`, `sales_quantity` = `unit_count`). Use it only for source-level detail (category, source period, currency, individual item quantity) — never add its totals to order line totals.
+- **Additional Sales are only available here.** The retail channels are the company's manually supplied Additional Sales; there is no separate Additional Sales tool. Filter `sales_channels` to `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` to report them alone.
 
 ### Order Metrics — `query_order_metrics`
 
@@ -410,8 +388,6 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Ad-specific:** `channel_name`, `platform_name`, `campaign_id`, `campaign_name`, `ad_group_id`, `ad_group_name`, `ad_id`, `ad_name`
 
-**Additional sales (`query_additional_sales_metrics` only):** date, week, month, category, subcategory, sku, source_start_date, source_end_date, source_currency, reporting_currency
-
 **Order line (`query_order_line_metrics`):** `date`, `week`, `month`, `sales_channel`, `customer_type`, `transaction_type`, `product_id`, `product_variant_id`, `sku`, `product_name`, `product_variant_name`, `order_sequence`, `order_id`, `is_subscription`, `subscription_type`, `customer_id`, `days_since_first_order`, `weeks_since_first_order`, `months_since_first_order`, `segment_1`–`segment_6`
 
 **Order (`query_order_metrics`):** `date`, `week`, `month`, `sales_channel`, `customer_type`, `transaction_type`, `is_subscription`, `subscription_type`, `order_sequence`, `order_id`, `customer_id`, `first_order_at`, `last_order_at`, `days_from_first_order_to_order_date`, `weeks_from_first_order_to_order_date`, `months_from_first_order_to_order_date`, `segment_1`–`segment_6`
@@ -459,19 +435,6 @@ query_ad_metrics(query={
   },
   dimensions: ["channel_name"],
   metrics: ["spend", "impressions", "clicks", "cpm", "cpc", "ctr"]
-})
-```
-
-**Additional sales by day and SKU for part of a source period:**
-```
-query_additional_sales_metrics(query={
-  filters: {
-    company_id: 123,
-    date_range: { start: "2026-07-03", end: "2026-07-05" },
-    reporting_currency_codes: ["USD"]
-  },
-  dimensions: ["date", "category", "subcategory", "sku", "reporting_currency"],
-  metrics: ["sales_quantity", "individual_item_quantity", "total_sales", "average_sales_per_unit"]
 })
 ```
 
