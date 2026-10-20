@@ -1,6 +1,6 @@
 {
   "name": "nice-insights-metrics",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "description": "Query Nice Insights ecommerce metrics, including sales by channel (retail store sales included), product traffic, and product reviews, with the matching MCP connector and usage skill.",
   "author": {
     "name": "Nice Insights",

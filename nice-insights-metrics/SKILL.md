@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.14" }
+metadata: { author: "nice-insights", version: "2.15" }
 ---
 
 # Nice Insights Metrics
@@ -47,7 +47,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
-| `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, or flow/list |
+| `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, flow/list, or first order date/week/month |
 | `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, click source, or click source type (Flow vs Campaign) |
 
 ---
@@ -349,6 +349,7 @@ Omitting `metrics` returns `profile_count`, `order_count`, and `total_net_sales_
 **Additional filters** (unique to this tool):
 
 - `first_event_date_range` — filter by the date of the profile's first email event
+- `first_order_date_range` — filter by the profile's first order date (`{start, end}`, inclusive). Profiles that have never ordered are excluded. Applied in addition to `date_range`, which still filters on `profile_created_date`; omit `date_range` to include profiles created at any time
 - `profile_statuses` — filter by profile status
 - `profile_creation_types` — filter by how the profile was created
 - `profile_creation_flow_or_lists` — filter by originating flow or list name
@@ -400,7 +401,9 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Reviews (`query_review_metrics` only):** date, week, month, review_source, sales_channel_name, review_id, product_id, product_name, title, review_text, rating
 
-**Email profile:** `profile_created_date`, `week`, `month`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `days_from_creation_to_first_order`, `weeks_from_creation_to_order_date`, `months_from_creation_to_order_date`
+**Email profile:** `profile_created_date`, `week`, `month`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `first_order_date`, `first_order_week`, `first_order_month`, `days_from_creation_to_first_order`, `weeks_from_creation_to_order_date`, `months_from_creation_to_order_date`
+
+**Note on `first_order_date`, `first_order_week`, `first_order_month`:** the date of the profile's linked Shopify customer's first order, or its Monday-start week / calendar month. With a `first_order_date_range` that does not start on a Monday / the 1st or end on a Sunday / month end, the first and last `first_order_week` / `first_order_month` buckets are partial: they hold only the in-range days. Use `first_order_week` or `first_order_month` rather than summing daily `first_order_date` rows — `profile_count` is distinct within each row, so summing daily rows double counts. Profiles that have never ordered have no value and are grouped into a row whose value is the literal string `None`. `date_range` still filters on `profile_created_date`. A profile linked to several Shopify customers can appear under more than one `first_order_date`, so every metric (`profile_count`, `order_count`, `conversion_rate`, `average_net_sales_mar`, and so on) can count that profile in more than one row, and values summed or re-derived across rows can slightly exceed the ungrouped total. Combining `first_order_date` (or `first_order_week`/`first_order_month`) with `profile_created_date`, `week`, or `month` and a `date_range` returns every period paired with every observed first order date (see **Complete calendar series** above) and the query fails when that exceeds `limit` (max 1000). Use the first order dimensions without a profile-created period dimension, or keep the `date_range` short.
 
 **Email event:** `event_date`, `week`, `month`, `event_name`, `profile_status`, `profile_creation_type`, `profile_creation_flow_or_list`, `clicked_email_source`, `clicked_email_source_type`
 
@@ -573,6 +576,17 @@ query_email_profile_metrics(query={
   filters: { company_id: 123, date_range: { start: "2025-01-01", end: "2025-03-31" } },
   dimensions: ["month", "profile_status"],
   metrics: ["profile_count", "order_count", "total_net_sales_mar", "conversion_rate"]
+})
+```
+
+**Email profiles by first order month, for profiles whose first order was in Q1 2025:**
+```
+query_email_profile_metrics(query={
+  filters: { company_id: 123, first_order_date_range: { start: "2025-01-01", end: "2025-03-31" } },
+  dimensions: ["first_order_month"],
+  metrics: ["profile_count", "order_count", "total_net_sales_mar"],
+  limit: 1000,
+  output_mode: "s3_csv"
 })
 ```
 
