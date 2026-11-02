@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.15" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.16" }
 ---
 
 # Nice Insights Metrics
@@ -38,7 +38,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | Tool | Use when the user asks about |
 |---|---|
 | `list_companies` | Which companies are available (or when company_id is unknown) |
-| `query_ad_metrics` | Ad spend, impressions, clicks, CPM, CPC, CTR |
+| `query_ad_metrics` | Ad spend, impressions, clicks, video views, CPM, CPC, CTR |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
@@ -135,6 +135,7 @@ Never merge `Walmart 3P` with the Walmart Retail channels, or `Amazon 1P` and `A
 | `spend` | Total ad spend in dollars |
 | `impressions` | Total ad impressions served |
 | `clicks` | Total ad clicks |
+| `video_views` | Video views as reported by each platform, which define a view differently: Google 30 seconds (or the whole video if shorter) or an interaction with the ad, Meta 3 seconds, TikTok 2 seconds, Snapchat 2 seconds, Amazon Sponsored Brands 5 seconds. Null for channels that don't report video views, so totals across channels include only the channels that do |
 | `cpm` | Cost per thousand impressions (`spend` / `impressions` × 1000) |
 | `cpc` | Cost per click (`spend` / `clicks`) |
 | `ctr` | Click-through rate as a percentage (`clicks` / `impressions` × 100) |
