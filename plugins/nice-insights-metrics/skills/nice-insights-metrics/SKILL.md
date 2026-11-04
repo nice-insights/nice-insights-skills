@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current on-hand inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.16" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
+metadata: { author: "nice-insights", version: "2.17" }
 ---
 
 # Nice Insights Metrics
@@ -41,7 +41,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_ad_metrics` | Ad spend, impressions, clicks, video views, CPM, CPC, CTR |
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
-| `query_inventory_metrics` | Current on-hand inventory levels (units in stock) by sales channel, product, or variant |
+| `query_inventory_metrics` | Current available inventory (units in stock not yet committed to orders) by sales channel, product, or variant |
 | `query_product_traffic_metrics` | Product page views and sessions over time by sales channel, marketplace, or product |
 | `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, review source, marketplace, rating, or submission period |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
@@ -106,7 +106,7 @@ Use the definitions below to infer which metrics to request based on the user's 
 | Tool | Metrics returned when `metrics` is omitted |
 |---|---|
 | `query_ad_metrics` | `spend`, `impressions`, `clicks` |
-| `query_inventory_metrics` | `on_hand_units` |
+| `query_inventory_metrics` | `available_units` |
 | `query_product_traffic_metrics` | `page_views`, `sessions` |
 | `query_review_metrics` | `review_count`, `average_rating` — every metric this tool has |
 | `query_email_profile_metrics` | `profile_count`, `order_count`, `total_net_sales_mar` |
@@ -125,6 +125,8 @@ Every other tool requires explicit metric selection and returns no metric column
 | `Walmart Retail - Canada` | Walmart Canada store (POS) sales from Additional Sales | No — units and net sales only |
 | `Target Retail` | Target store (POS) sales from Additional Sales | No — units and net sales only |
 | `Shopify`, `TikTok` | Direct-to-consumer storefronts | Yes |
+
+In `query_inventory_metrics`, `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` are the same retail (POS) channels; that tool returns their available stock from the Additional Inventory sheet.
 
 Never merge `Walmart 3P` with the Walmart Retail channels, or `Amazon 1P` and `Amazon 3P` — they are different sources. `Walmart Retail - US` and `Walmart Retail - Canada` are separate countries; combine them only when the user asks for all Walmart store sales. When the user just says "Amazon" or "Walmart", query every matching channel the tool offers and label each one.
 
@@ -209,19 +211,23 @@ Available sales channels: Amazon 3P, Shopify, TikTok, Walmart 3P. `Amazon 1P` an
 
 ### Inventory Metrics — `query_inventory_metrics`
 
-Current on-hand stock levels. Use for "how many units are in stock" questions, by sales channel, product, or variant. This is a **daily-refreshed snapshot of current stock**, not a historical timeseries — there is no `date_range` filter, and the snapshot's as-of date is available as the `snapshot_date` dimension.
+Current available stock. Use for "how many units are in stock" or "how many can we sell" questions, by sales channel, product, or variant. This is a **current snapshot of stock** (refreshed daily; retail channels reflect the latest weekly sheet), not a historical timeseries — there is no `date_range` filter, and the snapshot's as-of date is available as the `snapshot_date` dimension.
 
 | Metric | Definition |
 |---|---|
-| `on_hand_units` | Total units currently in stock (the default metric if none is specified) |
+| `available_units` | Units in stock not yet committed to a customer order (the default and only metric). `Amazon 1P`: sellable on-hand units minus unfilled customer-ordered units. `Shopify`: Shopify's available quantity (on hand minus committed). Retail channels: the sheet's units available on hand. |
+
+`available_units` **can be negative**. For `Amazon 1P` it means customers have ordered (or pre-ordered) more units than Amazon holds, i.e. a backorder; Amazon usually has a purchase order inbound. For `Shopify` it means a tracked item has been oversold. Report a negative value as a backorder or oversold quantity, never as negative stock. A channel or company total sums across variants, so negative variants reduce it; say so when a total includes them.
 
 **Dimensions:** `sales_channel`, `product_id`, `product_name`, `product_variant_id`, `product_variant_name`, `snapshot_date`
 
-Sales channels: `Amazon 1P` (Amazon Vendor Central inventory) and `Shopify`. Amazon 3P inventory is not available.
+Sales channels: `Amazon 1P` (Amazon Vendor Central inventory), `Shopify`, and the retail channels `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail`. Amazon 3P inventory is not available. Retail inventory comes from the company's Additional Inventory sheet and is a weekly snapshot, so its `snapshot_date` is the latest sheet date for that company and channel, not today. For retail rows `product_id` and `product_variant_id` are the sku and `product_name` / `product_variant_name` are null, so group retail stock by `product_id`.
+
+`Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` stock is not necessarily current: it is the count as of the sheet's last update, which can be a week or more old. Whenever you report retail stock, include `snapshot_date` and say it is the last-updated date, not today. For a company's total stock, break the total out by `sales_channel` instead of giving one blended number, since retail stock comes from an older snapshot than `Amazon 1P` and `Shopify`.
 
 **Additional filter** (unique to this tool):
 
-- `in_stock_only` — when true, only include variants with on_hand_units > 0. To find out-of-stock items instead, group by `product_variant_name` and look for `on_hand_units` of 0.
+- `in_stock_only` — when true, only include variants with available_units > 0. To find out-of-stock or backordered items instead, group by `product_variant_name` and look for `available_units` of 0 or below.
 
 ### Product Traffic Metrics — `query_product_traffic_metrics`
 
@@ -496,12 +502,12 @@ query_order_line_metrics(query={
 ```
 `Amazon 1P`, `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` return net sales and units with `order_count` 0 and a null `average_order_value`. Report their order count and AOV as "not available (source has no order-level data)", and state that the company-wide order count and AOV cover only the channels with orders (`Shopify`, `TikTok`, `Walmart 3P`).
 
-**Current on-hand inventory by product variant:**
+**Current available inventory by product variant:**
 ```
 query_inventory_metrics(query={
   filters: { company_id: 123, in_stock_only: true },
   dimensions: ["product_name", "product_variant_name"],
-  metrics: ["on_hand_units"]
+  metrics: ["available_units"]
 })
 ```
 
