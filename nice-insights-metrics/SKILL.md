@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.17" }
+metadata: { author: "nice-insights", version: "2.18" }
 ---
 
 # Nice Insights Metrics
@@ -287,7 +287,22 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 | contribution_margin_per_customer | Cumulative contribution margin divided by cohort customer count |
 | order_count | Cumulative number of orders for the cohort through each period |
 | orders_per_customer | Cumulative orders divided by cohort customer count |
-| retention_rate | Share of the cohort still active through each period |
+| retention_rate | Period 0: share with an observed initial order; later periods: share with a repeat order through the period |
+
+**Cohort membership and observations:** Every measure uses the same
+order-level acquisition population: customers with an `Order` whose first-order
+date is in the requested range. `sales_channels`, `subscription_types`, and a
+first-order product/SKU selector retain their established segment behavior:
+they select a customer when an order-level row for that customer matches the
+selector (the product/SKU values describe the customer's first order). Measure
+transaction selection and `max_days_since_first_order` apply only to observed
+activity and never shrink the cohort size. Refund choice therefore changes
+revenue observations, not membership. A missing source first order remains
+missing; the tool does not invent activity or force period 0 retention to 100%.
+
+CD-598 will add an inclusive order-date cutoff and complete-period blanks. That
+cutoff must also affect observations only, preserving the acquisition population
+defined above.
 
 **Parameters:**
 
