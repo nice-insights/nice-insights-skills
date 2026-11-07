@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.18" }
+metadata: { author: "nice-insights", version: "2.19" }
 ---
 
 # Nice Insights Metrics
@@ -95,6 +95,29 @@ Use these filters to narrow results to specific customer acquisition cohorts. Bo
 - `first_order_date_range` — available on `query_order_metrics` and `query_customer_cohort_metrics` (**required** on `query_customer_cohort_metrics` — it defines which cohorts to include). Filters to orders where the customer's first-ever order date falls within the given range. Uses the same `{start, end}` format as `date_range`.
 - `max_days_since_first_order` — available on `query_order_metrics`, `query_order_line_metrics`, and `query_customer_cohort_metrics`. Filters to orders placed within N days of the customer's first order. Useful for analyzing early customer behavior (e.g., repeat purchases within 30 days).
 
+## Step 2d: Subscription Filters (optional)
+
+`is_subscription` and `subscription_types` are available on
+`query_order_metrics`, `query_order_line_metrics`, and
+`query_customer_cohort_metrics`. They select **orders**, not a permanent customer
+classification: a customer who has both subscription and non-subscription orders
+can appear in both filtered results.
+
+- `is_subscription: true` selects subscription orders only.
+- `is_subscription: false` selects all non-subscription orders, including source
+  rows with either an explicit false/0 flag or a null subscription flag.
+- `subscription_types` accepts `First`, `Recurring`, `Unknown`, and
+  `Non-subscription`. `Unknown` matches the stored `subscription_type` value;
+  it does not mean SQL null. `Non-subscription` selects explicit false/0 and null
+  subscription flags.
+- Omit both filters for all orders. When both are supplied, they combine with
+  AND, so contradictory choices (for example `is_subscription: true` plus
+  `subscription_types: ["Non-subscription"]`) return no rows.
+
+For cohort metrics, these selections apply to both acquisition membership and
+observed activity. Transaction/refund selection and the age limit remain
+observation-only and do not change cohort denominators.
+
 ---
 
 ## Step 3: Choose the Right Tool and Metrics
@@ -181,7 +204,7 @@ For these rows `order_id`, `customer_id`, `order_sequence`, first-order and days
 - **Whenever an answer for company 71, 72 or 73 involves order counts, AOV, customers, order sequence, or new-vs-repeat behaviour**, say that those figures cover only channels with order-level data (`Shopify`, `TikTok`, `Walmart 3P`) and that `Amazon 1P` and retail channel volume is excluded from them. Report those channels' `net_sales` and `unit_count` separately. Do not divide total net sales by `order_count` yourself — use `average_order_value`, which already excludes rows without an order.
 - **Populated measures:** only `net_sales` and `unit_count`. For `Amazon 1P`, `gross_sales`, `total_discount`, `total_refunds`, `shipping_price` and `cogs` are 0 because the source does not report them — do not report Amazon 1P gross sales, discounts, refunds or margins, and expect `gross_sales` < `net_sales` whenever Amazon 1P rows are included.
 - **Retail channel figures are allocated, not observed per day.** Each Additional Sales sheet row covers an inclusive start/end date range, and its `net_sales` and `unit_count` are spread evenly across every day in that range. A daily or weekly breakdown, or a date range that covers only part of a source period, therefore returns an allocated share, not sales measured on those dates, and daily values can be fractional. Do not present day-to-day or week-to-week movement in these channels as retailer performance; prefer totals over whole source periods. `net_sales` is in the company's reporting currency. `unit_count` is the quantity purchased as the company reports it, not individual items in a multipack (3 of a 6-count SKU is 3, not 18).
-- **Filters and dimensions that drop or bucket these rows:** `order_sequences`, `customer_ids`, `max_days_since_first_order`, `is_subscription` and `subscription_types` filters exclude them; `date_column` = `revenue_recognition_date` or `first_order_date` excludes them (use the default `order_date`). Grouping by `order_id`, `customer_id`, `order_sequence` or the since-first-order dimensions puts them in a null group — label it "not available", not as a real order or customer. `Amazon 1P` rows have no `sku`, so `skus` filters exclude them; use `product_names` instead.
+- **Filters and dimensions that drop or bucket these rows:** `order_sequences`, `customer_ids`, `max_days_since_first_order`, and subscription-type values `First`, `Recurring`, or `Unknown` exclude them. `is_subscription: false` and `subscription_types: ["Non-subscription"]` include them because their flag is null; `is_subscription: true` excludes them. `date_column` = `revenue_recognition_date` or `first_order_date` excludes them (use the default `order_date`). Grouping by `order_id`, `customer_id`, `order_sequence` or the since-first-order dimensions puts them in a null group — label it "not available", not as a real order or customer. `Amazon 1P` rows have no `sku`, so `skus` filters exclude them; use `product_names` instead.
 - **`customer_type` on `Amazon 1P` rows is inferred from the product**, not from customer history: refill and replacement products are `Repeat`, everything else is `New`. Do not present it as measured new-vs-repeat customers. Retail channel rows have no `customer_type`, so a `customer_types` filter excludes them.
 - **Not in other order tools:** these rows are not in `query_order_metrics` or `query_customer_cohort_metrics`. Use `query_order_line_metrics` for total net sales and units across all channels.
 - **Additional Sales are only available here.** The retail channels are the company's manually supplied Additional Sales; there is no separate Additional Sales tool. Filter `sales_channels` to `Walmart Retail - US`, `Walmart Retail - Canada` and `Target Retail` to report them alone.
@@ -207,7 +230,7 @@ Available sales channels: Amazon 3P, Shopify, TikTok, Walmart 3P. `Amazon 1P` an
 - `customer_type` is classified by product, not by customer history: an order is `Repeat` when every line is a filter replacement or refill, otherwise `New`.
 - `cogs` and `total_discount` are not populated, and `contribution_margin` is 0. `acquisition_margin` is populated but has no customers behind it, so `average_acquisition_margin` is null for Walmart 3P, and a query that includes Walmart 3P alongside other channels counts its acquisition margin without counting any Walmart 3P customers, which skews the blended average. Do not report Walmart 3P profitability or acquisition margin from these tools; exclude Walmart 3P with `sales_channels` when reporting cross-channel `average_acquisition_margin`.
 - Walmart 3P rows have no revenue recognition or first order date, so they drop out when `date_column` is `revenue_recognition_date` or `first_order_date`. Use the default `order_date`.
-- Walmart 3P rows have no subscription flag or subscription type, so any `is_subscription` or `subscription_types` filter excludes them.
+- Walmart 3P rows have no subscription flag or subscription type. `is_subscription: false` and `subscription_types: ["Non-subscription"]` include them; `is_subscription: true` and stored subscription-type values exclude them.
 
 ### Inventory Metrics — `query_inventory_metrics`
 
@@ -291,7 +314,8 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 
 **Cohort membership and observations:** Every measure uses the same
 order-level acquisition population: customers with an `Order` whose first-order
-date is in the requested range. `sales_channels`, `subscription_types`, and a
+date is in the requested range. `sales_channels`, `is_subscription`,
+`subscription_types`, and a
 first-order product/SKU selector retain their established segment behavior:
 they select a customer when an order-level row for that customer matches the
 selector (the product/SKU values describe the customer's first order). Measure
@@ -313,7 +337,8 @@ defined above.
 - `first_order_product_name` — filter to customers whose first order included this product name
 - `first_order_sku` — filter to customers whose first order included this SKU
 - `sales_channels` — filter by sales channel: Amazon 3P, Shopify, TikTok. `Walmart 3P` is not supported for cohorts because it has no customer identifier, and `Amazon 1P` and the retail channels have no customers at all.
-- `subscription_types` — filter by subscription type: First, Recurring, Unknown
+- `is_subscription` — true selects subscription orders only; false includes explicit false/0 and null flags. Omit for all orders.
+- `subscription_types` — filter by subscription type: First, Recurring, Unknown, Non-subscription. Non-subscription includes explicit false/0 and null flags; Unknown is the stored value, not SQL null.
 
 ### Cart Funnel Metrics — `query_cart_metrics`
 
@@ -580,6 +605,20 @@ query_customer_cohort_metrics(query={
   },
   measure: "sales_per_customer",
   cohort_grain: "month"
+})
+```
+
+**Monthly non-subscription orders (including missing source flags):**
+```
+query_order_metrics(query={
+  filters: {
+    company_id: 123,
+    date_range: { start: "2026-09-01", end: "2026-09-30" },
+    transaction_types: ["Order"],
+    subscription_types: ["Non-subscription"]
+  },
+  dimensions: ["month"],
+  metrics: ["order_count", "customer_count"]
 })
 ```
 
