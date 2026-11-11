@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.19" }
+metadata: { author: "nice-insights", version: "2.20" }
 ---
 
 # Nice Insights Metrics
@@ -20,7 +20,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 > **Complete calendar series:** When an explicit `date_range` and exactly one
 > `date`, `week`, or `month` dimension are requested, `query_ad_metrics`,
 > `query_order_metrics`, `query_order_line_metrics`,
-> `query_product_traffic_metrics`, `query_cart_metrics`,
+> `query_amazon_traffic_metrics`, `query_cart_metrics`,
 > `query_email_event_metrics`, and `query_email_profile_metrics` return every
 > period in the range. With additional dimensions, each period is paired only
 > with complete dimension tuples that were observed somewhere in the filtered
@@ -42,7 +42,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_order_line_metrics` | Product-level sales — revenue, discounts, refunds, units |
 | `query_order_metrics` | Order-level costs and margins — shipping costs, fees, contribution margin, CAC |
 | `query_inventory_metrics` | Current available inventory (units in stock not yet committed to orders) by sales channel, product, or variant |
-| `query_product_traffic_metrics` | Product page views and sessions over time by sales channel, marketplace, or product |
+| `query_amazon_traffic_metrics` | Amazon product page views and sessions over time by sales channel, marketplace, parent ASIN, or child ASIN |
 | `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, review source, marketplace, rating, or submission period |
 | `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
@@ -72,7 +72,7 @@ Ask: "Should I include or exclude refunds?"
 
 **Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
-Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_product_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_amazon_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
 
 ---
 
@@ -130,7 +130,7 @@ Use the definitions below to infer which metrics to request based on the user's 
 |---|---|
 | `query_ad_metrics` | `spend`, `impressions`, `clicks` |
 | `query_inventory_metrics` | `available_units` |
-| `query_product_traffic_metrics` | `page_views`, `sessions` |
+| `query_amazon_traffic_metrics` | `page_views`, `sessions` |
 | `query_review_metrics` | `review_count`, `average_rating` — every metric this tool has |
 | `query_email_profile_metrics` | `profile_count`, `order_count`, `total_net_sales_mar` |
 | `query_email_event_metrics` | `total_event_count`, `unique_event_count` |
@@ -252,24 +252,26 @@ Sales channels: `Amazon 1P` (Amazon Vendor Central inventory), `Shopify`, and th
 
 - `in_stock_only` — when true, only include variants with available_units > 0. To find out-of-stock or backordered items instead, group by `product_variant_name` and look for `available_units` of 0 or below.
 
-### Product Traffic Metrics — `query_product_traffic_metrics`
+### Amazon Traffic Metrics — `query_amazon_traffic_metrics`
 
-Product-level traffic over time. Use for page-view and session trends, product traffic rankings, and product comparisons. The default metrics are both `page_views` and `sessions`.
+Amazon product-level traffic over time, keyed by Amazon's own parent / child ASINs. Use for page-view and session trends, product traffic rankings, and product comparisons on Amazon. The default metrics are both `page_views` and `sessions`.
 
 > **`Amazon 1P` limitation:** Amazon Vendor Central provides glance views, exposed as `page_views`, but does not provide sessions. `sessions` is therefore `null` for `Amazon 1P`. Calendar periods added to complete a series also return `null` for every metric when no source rows exist. Do not report null Amazon 1P sessions as zero. `Amazon 3P` (Seller Central) provides both metrics.
 
-The tool currently supports the `Amazon 1P` and `Amazon 3P` sales channels. Shopify product traffic will be added after its separate GraphQL data build is available.
+The tool supports the `Amazon 1P` (Vendor Central, companies 71, 72 and 73) and `Amazon 3P` (Seller Central, every other Amazon company) sales channels.
 
 | Metric | Definition |
 |---|---|
 | `page_views` | Product-detail page views. Vendor Central glance views are mapped to this metric. |
 | `sessions` | Product-detail sessions. Unavailable for `Amazon 1P`. |
 
-**Dimensions:** `date`, `week`, `month`, `sales_channel`, `marketplace_id`, `marketplace_name`, `product_id`, `product_name`
+**Dimensions:** `date`, `week`, `month`, `sales_channel`, `marketplace_id`, `marketplace_name`, `parent_asin`, `parent_asin_name`, `child_asin`, `child_asin_name`
 
-**Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `product_ids`, `product_names`
+**Filters:** `date_range`, `sales_channels`, `marketplace_ids`, `marketplace_names`, `parent_asins`, `parent_asin_names`, `child_asins`, `child_asin_names`
 
-`Amazon 3P` (Seller Central) reports traffic at ASIN/product grain, not SKU/variant grain. The tool intentionally does not expose variant dimensions or filters so repeated SKU rows cannot be mistaken for variant-level traffic.
+- Traffic is reported per **child ASIN** for both channels. There is no SKU-level traffic: Amazon 3P repeats ASIN traffic on every SKU, so SKUs are not exposed.
+- `parent_asin` is the child's variation parent. A standalone listing is its own parent. For `Amazon 3P` it is the parent Amazon reported **on that day** — Amazon re-parents listings, so over a long range one child can appear under several parent ASINs (some now retired). To follow one product across time, group or filter by `child_asin`. For `Amazon 1P` it is the current catalog parent.
+- Use `child_asin_name` as the product label. `parent_asin_name` is usually null (it is set only by a Nice product-name override), so a `parent_asin_names` filter matches only overridden products; filter by `parent_asins` to select a variation family reliably.
 
 ### Review Metrics — `query_review_metrics`
 
@@ -444,7 +446,7 @@ Use s3_csv as the output mode when you expect more than 40 rows of data, or when
 
 **Inventory (`query_inventory_metrics` only):** `sales_channel`, `product_id`, `product_name`, `product_variant_id`, `product_variant_name`, `snapshot_date`
 
-**Product traffic (`query_product_traffic_metrics` only):** date, week, month, sales_channel, marketplace_id, marketplace_name, product_id, product_name
+**Amazon traffic (`query_amazon_traffic_metrics` only):** date, week, month, sales_channel, marketplace_id, marketplace_name, parent_asin, parent_asin_name, child_asin, child_asin_name
 
 **Reviews (`query_review_metrics` only):** date, week, month, review_source, sales_channel_name, review_id, product_id, product_name, title, review_text, rating
 
@@ -551,15 +553,15 @@ query_inventory_metrics(query={
 })
 ```
 
-**Daily product traffic by product:**
+**Daily Amazon traffic by child ASIN:**
 ```
-query_product_traffic_metrics(query={
+query_amazon_traffic_metrics(query={
   filters: {
     company_id: 123,
     date_range: { start: "2025-01-01", end: "2025-01-31" },
     sales_channels: ["Amazon 3P"]
   },
-  dimensions: ["date", "product_id", "product_name"],
+  dimensions: ["date", "parent_asin", "child_asin", "child_asin_name"],
   metrics: ["page_views", "sessions"],
   order_by: [{ field: "date", direction: "asc" }]
 })
