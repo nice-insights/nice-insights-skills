@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
-description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds.
-metadata: { author: "nice-insights", version: "2.20" }
+description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds. Before any Amazon traffic query, ask whether to report by parent ASIN or child ASIN.
+metadata: { author: "nice-insights", version: "2.21" }
 ---
 
 # Nice Insights Metrics
@@ -50,6 +50,15 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, flow/list, or first order date/week/month |
 | `query_email_event_metrics` | Email event volume (total and unique profiles) by event name, profile status, creation type, flow/list, click source, or click source type (Flow vs Campaign) |
 
+> **Deprecated tool: query\_product\_traffic\_metrics has been removed and replaced by
+> `query_amazon_traffic_metrics`.** If another skill, prompt, or saved workflow
+> refers to query\_product\_traffic\_metrics for Amazon product traffic (page views,
+> glance views, sessions), call `query_amazon_traffic_metrics` instead. Its
+> product dimensions and filters changed: use `parent_asin` / `child_asin` (and
+> `child_asin_name` as the label) in place of `product_id` / `product_name`, and
+> `parent_asins` / `child_asins` / `child_asin_names` in place of `product_ids` /
+> `product_names`.
+
 ---
 
 ## Step 1: Identify the Company
@@ -73,6 +82,17 @@ Ask: "Should I include or exclude refunds?"
 **Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
 Skip this step for `query_ad_metrics`, `query_cart_metrics`, `query_timeseries_metrics`, `query_inventory_metrics`, `query_amazon_traffic_metrics`, `query_review_metrics`, `query_email_profile_metrics`, and `query_email_event_metrics` — they have no transaction type concept.
+
+---
+
+## Step 2a: Confirm ASIN Level (BLOCKING — required before any Amazon traffic query)
+
+**STOP. Before calling `query_amazon_traffic_metrics`, you MUST ask the user whether they want the data by parent ASIN or by child ASIN. Do NOT proceed with the tool call until they answer.** Skip the question only when the user has already said which level they want in this conversation.
+
+Ask: "Do you want this by parent ASIN or child ASIN?"
+
+- **Parent ASIN** → add `parent_asin` to `dimensions` (filter with `parent_asins`). Rolls every child variation (size, color, count) up to its variation family. For `Amazon 3P` the parent is the one Amazon reported on each day, so a long range can show one product under several parents — see the notes under **Amazon Traffic Metrics**.
+- **Child ASIN** → add `child_asin` and `child_asin_name` to `dimensions` (filter with `child_asins` / `child_asin_names`). One row per individual listing; use this to follow one product across time.
 
 ---
 
@@ -253,6 +273,8 @@ Sales channels: `Amazon 1P` (Amazon Vendor Central inventory), `Shopify`, and th
 - `in_stock_only` — when true, only include variants with available_units > 0. To find out-of-stock or backordered items instead, group by `product_variant_name` and look for `available_units` of 0 or below.
 
 ### Amazon Traffic Metrics — `query_amazon_traffic_metrics`
+
+Replaces the removed query\_product\_traffic\_metrics tool (see the deprecation note under **Available Tools**). Ask whether the user wants parent or child ASIN before querying (**Step 2a**).
 
 Amazon product-level traffic over time, keyed by Amazon's own parent / child ASINs. Use for page-view and session trends, product traffic rankings, and product comparisons on Amazon. The default metrics are both `page_views` and `sessions`.
 
