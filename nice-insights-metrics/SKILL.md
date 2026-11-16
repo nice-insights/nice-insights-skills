@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds. Before any Amazon traffic query, ask whether to report by parent ASIN or child ASIN.
-metadata: { author: "nice-insights", version: "2.21" }
+metadata: { author: "nice-insights", version: "2.22" }
 ---
 
 # Nice Insights Metrics
@@ -348,13 +348,24 @@ activity and never shrink the cohort size. Refund choice therefore changes
 revenue observations, not membership. A missing source first order remains
 missing; the tool does not invent activity or force period 0 retention to 100%.
 
-CD-598 will add an inclusive order-date cutoff and complete-period blanks. That
-cutoff must also affect observations only, preserving the acquisition population
-defined above.
+`observation_end_date` is an inclusive order-date cutoff for activity only;
+it never changes the acquisition population. With a cutoff, an order or refund
+on that day is included, while later activity is excluded. Cohort rows still
+bucket by Monday-start week or calendar month, but observed periods use the
+source customer-age values: period 0 is the acquisition day, week period N ≥ 1
+is ages `(N-1)*7+1` through `N*7`, and month period N ≥ 1 is ages
+`(N-1)*30+1` through `N*30`. The tool returns a period only after that age
+interval has elapsed for every customer in the cohort (the latest acquired
+customer is limiting); otherwise the matrix leaves it blank. This makes a
+shared cutoff comparable across cohorts without changing cohort size.
+`max_days_since_first_order` remains a separate, per-customer activity cap.
 
 **Parameters:**
 
 - `cohort_grain`: `week` or `month` (default: month) — time grain for cohort bucketing
+- `observation_end_date`: inclusive order-date cutoff for observed Orders and
+  Refunds. It preserves acquisition membership and suppresses periods that are
+  not fully elapsed for every member of the cohort.
 
 **Additional filters** (unique to this tool):
 
@@ -625,6 +636,7 @@ query_customer_cohort_metrics(query={
   filters: {
     company_id: 123,
     first_order_date_range: { start: "2025-01-01", end: "2025-03-31" },
+    observation_end_date: "2025-06-30",
     transaction_types: ["Order"]
   },
   measure: "sales_per_customer",
