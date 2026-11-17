@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds. Before any Amazon traffic query, ask whether to report by parent ASIN or child ASIN.
-metadata: { author: "nice-insights", version: "2.22" }
+metadata: { author: "nice-insights", version: "2.23" }
 ---
 
 # Nice Insights Metrics
@@ -358,14 +358,26 @@ is ages `(N-1)*7+1` through `N*7`, and month period N ≥ 1 is ages
 interval has elapsed for every customer in the cohort (the latest acquired
 customer is limiting); otherwise the matrix leaves it blank. This makes a
 shared cutoff comparable across cohorts without changing cohort size.
+Every fully elapsed period from 0 through the cohort's cutoff limit is returned,
+including gaps and trailing periods with no activity. An empty period carries each
+cumulative value forward; if the cohort has no earlier observed activity, its
+cumulative value starts at zero. Retention period 0 still uses observed initial
+activity, and later empty periods retain the cumulative repeat-customer count.
+Without a cutoff, internal gaps are still filled through each cohort's last
+observed period, but no trailing period can be inferred beyond that boundary.
+Inline matrices and flat CSV output use the same complete grid.
 `max_days_since_first_order` remains a separate, per-customer activity cap.
 
 **Parameters:**
 
 - `cohort_grain`: `week` or `month` (default: month) — time grain for cohort bucketing
+- `limit`: maximum complete-grid flat rows (default 5,000; maximum 10,000). If the
+  eligible grid exceeds it, the query fails with the required row count instead of
+  returning a partial matrix or CSV; raise the limit or narrow the acquisition/cutoff range.
 - `observation_end_date`: inclusive order-date cutoff for observed Orders and
-  Refunds. It preserves acquisition membership and suppresses periods that are
-  not fully elapsed for every member of the cohort.
+  Refunds. It preserves acquisition membership, returns every fully elapsed
+  period including empty ones, and suppresses periods that are not fully elapsed
+  for every member of the cohort.
 
 **Additional filters** (unique to this tool):
 
