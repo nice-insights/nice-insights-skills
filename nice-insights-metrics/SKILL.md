@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds. Before any Amazon traffic query, ask whether to report by parent ASIN or child ASIN.
-metadata: { author: "nice-insights", version: "2.24" }
+metadata: { author: "nice-insights", version: "2.26" }
 ---
 
 # Nice Insights Metrics
@@ -44,7 +44,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_inventory_metrics` | Current available inventory (units in stock not yet committed to orders) by sales channel, product, or variant |
 | `query_amazon_traffic_metrics` | Amazon product page views and sessions over time by sales channel, marketplace, parent ASIN, or child ASIN |
 | `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, review source, marketplace, rating, or submission period |
-| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, retention rate, per-period active customers/rate, or orders per active customer |
+| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, retention rate, per-period active customers/rate, orders per active customer, share reaching order N, days until the second order, and calendar-month activity |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 | `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, flow/list, or first order date/week/month |
@@ -329,7 +329,7 @@ Omitting `metrics` returns both.
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
-Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. Existing sales, margin, order-count, per-customer, and retention measures are cumulative through the period; active-customer measures describe exactly one period. Use for retention and monthly activity analysis, LTV curves, and cohort comparisons. Accepts a single measure per query.
+Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order by default. Existing sales, margin, order-count, per-customer, and retention measures are cumulative through the period; active-customer measures describe exactly one period. `layout` switches the column axis to order sequence, days since first order, or calendar month. Use for retention and monthly activity analysis, LTV curves, reaching-order distributions, time-to-second-order, and cohort comparisons. Accepts a single measure per query.
 
 | Measure | Definition |
 |---|---|
@@ -343,6 +343,23 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 | active_customers | Distinct cohort customers with an Order in exactly this period (not cumulative) |
 | active_customer_rate | Active customers in exactly this period ÷ the stable acquisition cohort size |
 | orders_per_active_customer | Distinct Orders in exactly this period ÷ its active customers; blank when active customers are zero |
+| reaching_order_customers | Customers with at least N observed Orders (layout `order_sequence`); cumulative in N |
+| reaching_order_rate | Reaching-order customers ÷ the stable acquisition cohort size (layout `order_sequence`) |
+| second_order_customers | Customers whose own second order (`order_sequence = 2`) fell exactly on that day (layout `day`) |
+| second_order_reach_rate | Cumulative share of the cohort that had reached a second order by that day (layout `day`) |
+
+**Layouts.** `layout` sets the column axis and defaults to the measure's own layout, so the original measures keep periods since first order.
+
+| Layout | Columns | Measures |
+|---|---|---|
+| `period` (default) | Weeks or months since first order | All original measures |
+| `order_sequence` | The customer's Nth order | `reaching_order_customers`, `reaching_order_rate` |
+| `day` | Days since first order | `second_order_customers`, `second_order_reach_rate` |
+| `calendar_month` | Calendar months as `YYYY-MM` | `active_customers`, `active_customer_rate`, `orders_per_active_customer` |
+
+`order_sequence` counts a customer once, at their highest observed sequence, so duplicated source rows cannot inflate the reach and **no column is derived by summing per-sequence customer counts** (a customer with five orders would otherwise appear five times). It ends at the highest sequence observed in the window, so reaching order 1 is the whole cohort. `day` uses exactly each customer's own second order (the `order_sequence = 2` event). A customer whose sequence-2 order is missing from the source, or is excluded by an activity filter such as `max_days_since_first_order` or `sales_channels`, contributes no day at all — a later order is never substituted for it, so the layout never reports a third order as second-order timing. `max_days_since_first_order` bounds both the observed second orders and the day grid.
+
+`calendar_month` uses **period-specific distinct customers**: a customer active in March and again in May counts once in each month, never by differencing cumulative counts. The month grid is explicitly eligible and member-based — it starts at the calendar month of the cohort's **earliest actual member acquisition date** (not the month of the cohort bucket label, so a week bucket starting in the previous month cannot invent a pre-acquisition zero month) and stops at the last month that has fully elapsed on or before `observation_end_date`; later months and the partially elapsed cutoff month are absent rather than zero, and a cohort acquired in that partial month has no eligible month yet. **Age bands:** use `cohort_grain: month` — all members were then acquired in the cohort's month, so the month index (0 = acquisition month) is the exact age band. A `week`-grain month cell aggregates members acquired in different weeks, so it is a calendar period of the cohort, not a single age band. Flat CSV columns are `first_order_date`, the layout key (`periods_since_first_order`, `order_sequence`, `days_since_first_order`, or `calendar_month`), `cohort_size`, and `value`.
 
 The three activity measures count directly within each period; do not difference
 cumulative distinct customers. A customer active in several periods counts once in
@@ -389,6 +406,8 @@ Inline matrices and flat CSV output use the same complete grid.
 **Parameters:**
 
 - `cohort_grain`: `week` or `month` (default: month) — time grain for cohort bucketing
+- `layout`: `period` (default), `order_sequence`, `day`, or `calendar_month` — the
+  matrix column axis; see **Layouts** above. Omit it to use the measure's own layout
 - `limit`: maximum complete-grid flat rows (default 5,000; maximum 10,000). If the
   eligible grid exceeds it, the query fails with the required row count instead of
   returning a partial matrix or CSV; raise the limit or narrow the acquisition/cutoff range.
