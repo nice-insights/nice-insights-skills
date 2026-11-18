@@ -1,7 +1,7 @@
 ---
 name: nice-insights-metrics
 description: MUST load before querying any Nice Insights ecommerce metrics MCP tool — ad, order, order line, inventory, product traffic, product review, cohort, cart funnel, timeseries, or email metrics. Covers ad spend, impressions, clicks, video views, CPM/CPC/CTR, CAC and blended CAC, gross/net sales (including manually supplied retail store sales), discounts, refunds, order and customer counts, contribution and acquisition margins, current available inventory, product page views and sessions, product reviews and average star rating, retention and LTV, Shopify checkout-funnel volumes, stage-advance rates, and overall conversion rate (sessions, carts, checkouts, orders), email profile counts, email-attributed sales, and email event volume. Before any order, order-line, or cohort query, ask whether to include or exclude refunds. Before any Amazon traffic query, ask whether to report by parent ASIN or child ASIN.
-metadata: { author: "nice-insights", version: "2.23" }
+metadata: { author: "nice-insights", version: "2.24" }
 ---
 
 # Nice Insights Metrics
@@ -44,7 +44,7 @@ Use these tools to answer analytics questions about advertising performance, sal
 | `query_inventory_metrics` | Current available inventory (units in stock not yet committed to orders) by sales channel, product, or variant |
 | `query_amazon_traffic_metrics` | Amazon product page views and sessions over time by sales channel, marketplace, parent ASIN, or child ASIN |
 | `query_review_metrics` | Product reviews — individual review title, text, and rating, or review counts and average star rating by product, review source, marketplace, rating, or submission period |
-| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, or retention rate per cohort over time |
+| `query_customer_cohort_metrics` | Cohort retention/LTV matrices — sales, contribution margin, order counts, per-customer variants, retention rate, per-period active customers/rate, or orders per active customer |
 | `query_cart_metrics` | Shopify checkout funnel — session/cart/checkout/order volumes, the percentage of each stage that advances to the next, and the overall session→order conversion rate, optionally by device type |
 | `query_timeseries_metrics` | Blended customer acquisition cost (CAC) trends over time |
 | `query_email_profile_metrics` | Email list size, email-attributed net sales (excludes refunds), profile conversion rate by status, creation type, flow/list, or first order date/week/month |
@@ -78,6 +78,11 @@ Ask: "Should I include or exclude refunds?"
 - **Exclude refunds** → `transaction_types: ["Order"]` (typical for marketing/sales activity views)
 - **Include refunds** → `transaction_types: ["Order", "Refund"]` (typical for finance/net revenue views)
 - **No filter** → omit `transaction_types` entirely (returns everything)
+
+For cohort order, repeat, and per-period activity measures (`order_count`,
+`orders_per_customer`, `retention_rate`, `active_customers`,
+`active_customer_rate`, and `orders_per_active_customer`), omit
+`transaction_types`: these measures always use Orders and reject that filter.
 
 **Note:** If you add `transaction_type` as a *dimension*, refund rows appear as separate rows rather than being filtered. Use this when the user wants orders and refunds broken out side by side.
 
@@ -324,7 +329,7 @@ Omitting `metrics` returns both.
 
 ### Customer Cohort Metrics — `query_customer_cohort_metrics`
 
-Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. All values are cumulative through the period. Use for retention analysis, LTV curves, and cohort comparisons. Accepts a single measure per query.
+Pivoted cohort matrix with rows per cohort (first order period) and columns per period since first order. Existing sales, margin, order-count, per-customer, and retention measures are cumulative through the period; active-customer measures describe exactly one period. Use for retention and monthly activity analysis, LTV curves, and cohort comparisons. Accepts a single measure per query.
 
 | Measure | Definition |
 |---|---|
@@ -335,6 +340,19 @@ Pivoted cohort matrix with rows per cohort (first order period) and columns per 
 | order_count | Cumulative number of orders for the cohort through each period |
 | orders_per_customer | Cumulative orders divided by cohort customer count |
 | retention_rate | Period 0: share with an observed initial order; later periods: share with a repeat order through the period |
+| active_customers | Distinct cohort customers with an Order in exactly this period (not cumulative) |
+| active_customer_rate | Active customers in exactly this period ÷ the stable acquisition cohort size |
+| orders_per_active_customer | Distinct Orders in exactly this period ÷ its active customers; blank when active customers are zero |
+
+The three activity measures count directly within each period; do not difference
+cumulative distinct customers. A customer active in several periods counts once in
+each of those periods. Empty periods return zero for `active_customers` and
+`active_customer_rate`, and null for `orders_per_active_customer` rather than zero.
+All activity measures use Orders only and reject `transaction_types`; refunds never
+create active customers or increase their order counts. `active_customer_rate` is the
+per-period activity share, while `retention_rate` is cumulative repeat reach after
+period 0. A customer with no observed initial order can make period 0 activity less
+than the full cohort; the tool does not fabricate that missing source activity.
 
 **Cohort membership and observations:** Every measure uses the same
 order-level acquisition population: customers with an `Order` whose first-order
@@ -655,6 +673,21 @@ query_customer_cohort_metrics(query={
   cohort_grain: "month"
 })
 ```
+
+**Monthly active-customer rate and orders per active customer:**
+```
+query_customer_cohort_metrics(query={
+  filters: {
+    company_id: 123,
+    first_order_date_range: { start: "2025-01-01", end: "2025-03-31" },
+    observation_end_date: "2025-06-30"
+  },
+  measure: "active_customer_rate",
+  cohort_grain: "month"
+})
+```
+Run the same query with `orders_per_active_customer` for period order frequency.
+Both are per-period rather than cumulative and always use Orders only.
 
 **Monthly non-subscription orders (including missing source flags):**
 ```
